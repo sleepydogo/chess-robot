@@ -1,5 +1,3 @@
-[object Object]
-
 # chessboad-cv
 
 ### Descripcion
