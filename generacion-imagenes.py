@@ -96,7 +96,7 @@ def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
         showImg(img, 'Contornos')
     if contorno > 0:
         if verbose: print('Pieza detectada')
-        return 'b', 1
+        return 1
     else:
         lower_red = np.array([0, 50, 50])
         upper_red = np.array([255, 255, 255])
@@ -106,10 +106,10 @@ def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
 
         if contorno > 0:
             if verbose: print('Pieza detectada')
-            return 'r', 2
+            return 2
         else:
             if verbose: print('Casillero vacio')
-            return '.', 0    
+            return 0    
         
 def solicitarFoto(ruta):
     requests.get(url_capturar)
@@ -150,12 +150,108 @@ def calibrar(filename):
     plt.show()
     plt.close()
 
+def tienen_mismos_numeros(array1, array2):
+    conjunto1 = set(array1)
+    conjunto2 = set(array2)
+    return conjunto1 == conjunto2
+
+def determinarPuntos(mov0, mov1):
+
+    matriz_mov_tipos = np.array([[1,-1],  # mov negro 0 
+                            [2,-1],  # pieza blanca come pieza negra 1 
+                            [1,1],   # pieza negra come pieza blanca 2
+                            [2,-2]])  # mov blanco 3 
+
+
+    res = mov0 - mov1
+
+    print(res)
+
+    puntos = np.zeros((2,3), dtype=int)
+    cont = 0
+
+    # puntos =  [indice][res, x, y]
+    for i in range(8):
+        for j in range(8):
+            if (res[i][j] != 0):
+                print(cont)
+                puntos[cont][0] = res[i][j] 
+                puntos[cont][1] = i
+                puntos[cont][2] = j
+                cont = cont + 1
+
+    diferencias = np.array([puntos[0][0], puntos[1][0]])
+
+    caso = -1
+
+    for i in range(4):
+        if (tienen_mismos_numeros(diferencias, matriz_mov_tipos[i])):
+            caso = i
+            break
+
+    origen =  np.zeros((2), dtype=int)
+    destino = np.zeros((2), dtype=int)
+
+    if (caso == 0):
+        for i in range(2):
+            if (puntos[i][0] == 1): 
+                origen[0] = int(puntos[i][1])
+                origen[1] = int(puntos[i][2])
+            else:
+                destino[0] = int(puntos[i][1])
+                destino[1] = int(puntos[i][2])
+    elif (caso == 1):
+        for i in range(2):
+            if (puntos[i][0] == 2): 
+                origen[0] = puntos[i][1]
+                origen[1] = puntos[i][2]
+            else:
+                destino[0] = puntos[i][1]
+                destino[1] = puntos[i][2]
+    elif (caso == 2):
+        for i in range(2):
+            if (mov1[puntos[i][1]][puntos[i][2]] == 0): 
+                origen[0] = puntos[i][1]
+                origen[1] = puntos[i][2]
+            else:
+                destino[0] = puntos[i][1]
+                destino[1] = puntos[i][2]
+    elif (caso == 3):
+        for i in range(2):
+            if (puntos[i][0] == 2): 
+                origen[0] = puntos[i][1]
+                origen[1] = puntos[i][2]
+            else:
+                destino[0] = puntos[i][1]
+                destino[1] = puntos[i][2]
+    return origen, destino
+
 def main():
+
+    tablero = [['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'], 
+           ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'], 
+           ['.', '.', '.', '.', '.', '.', '.', '.'], 
+           ['.', '.', '.', '.', '.', '.', '.', '.'], 
+           ['.', '.', '.', '.', '.', '.', '.', '.'], 
+           ['.', '.', '.', '.', '.', '.', '.', '.'], 
+           ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'], 
+           ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']]
+    
+    matriz_numerica_t0 = np.array([[1, 1, 1, 1, 1, 1, 1, 1],
+                                   [1, 1, 1, 1, 1, 1, 1, 1],
+                                   [0, 0, 0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0, 0, 0],
+                                   [2, 2, 2, 2, 2, 2, 2, 2],
+                                   [2, 2, 2, 2, 2, 2, 2, 2]])
+    matriz_numerica_t1 = np.zeros((8, 8), dtype=int)
+            
+
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
-    nombre_archivo = input("Ingrese nombre del tablero: ")
-    nombre = nombre_archivo + ".jpg"
-    ruta = "/home/tom/universidad/LIDI/cv-tablero/" + nombre
+    ruta = "/home/tom/universidad/LIDI/cv-tablero/temp.jpg"
+    
     while True:
         select = input("\nPresione 'r' para recalibrar manualmente \nPresione 't' para capturar las imagenes \nPresione 'q' para salir \n -- ")
         if str(select) == "t":
@@ -163,21 +259,28 @@ def main():
             # enviamos un get para que se capture la foto
             solicitarFoto(ruta)
             image = cv2.imread(ruta)
-            
+
             print("Aplicando algoritmos de computer vision ... \n Resultado \n")
             
             image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
             image = rotarImagen(image)
-            matriz_color = np.empty((8, 8), dtype=str)
-            matriz_numerica = np.empty((8, 8), dtype=int)
             for i in range(8):
                 for j in range(8):
                     casillero = recortarCasillero(image, i,j)
-                    matriz_color[i][j], matriz_numerica[i][j] = detectarPieza(casillero, False, 6000, 400)
-            print(matriz_color)
-            print(matriz_numerica)
-            
+                    matriz_numerica_t1[i][j] = detectarPieza(casillero, False, 6000, 400)
 
+            origen, destino = determinarPuntos(matriz_numerica_t0, matriz_numerica_t1)
+
+            tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
+            tablero[origen[0]][origen[1]] = '.'
+            
+            print(matriz_numerica_t0, matriz_numerica_t1)
+
+            for i in range(8):
+                print(tablero[i])
+            
+            matriz_numerica_t0 = matriz_numerica_t1.copy()
+            print(matriz_numerica_t0, matriz_numerica_t1)
         elif str(select) == "r":
             while (True):
                 print("Capturando imagen...\n")
