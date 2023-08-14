@@ -1,14 +1,29 @@
 import requests
-import keyboard
 import time
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
+import matplotlib.widgets as widgets
+import os
+
+class SquareSelection():
+    x_initial = 0 
+    y_initial = 0 
+    x_release = 0 
+    y_release = 0 
+
+selec = SquareSelection()
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+
+url_capturar = 'http://192.168.0.131/capture'
+url_descargar = 'http://192.168.0.131/saved-photo'
 
 def showImg(img, text='image'):
     cv2.namedWindow(text, cv2.WINDOW_KEEPRATIO)
     cv2.imshow(text, img)
-    cv2.resizeWindow(text, 700, 700)
     cv2.waitKey()
     cv2.destroyAllWindows()
     
@@ -19,16 +34,16 @@ def mostrarContornos(img,min,max, bool):
         showImg(edges, 'Detector de contornos')
     return edges
 
-def rotarRecortarImagen(img, borde_x=10, borde_y=10, verbose=False):
+def rotarImagen(img, verbose=False):
     # Convertimos la imagen a gris
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).copy()
 
-    if (verbose): showImg(img_gray, 'Imagen en blanco y negro')
+    if (verbose): cv2.imshow('Imagen en blanco y negro', img_gray)
 
     # Aplicar deteccion de bordes utilizando Canny
     edges = mostrarContornos(img_gray, 150, 300, verbose)
 
-    if (verbose): showImg(edges, 'Contornos detectados')
+    if (verbose): cv2.imshow('Contornos detectados', edges)
 
     # Encontrar las lineas presentes en la imagen utilizando la transformada de Hough
     lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, minLineLength=100, maxLineGap=10)
@@ -42,36 +57,9 @@ def rotarRecortarImagen(img, borde_x=10, borde_y=10, verbose=False):
     M = cv2.getRotationMatrix2D(center, angle * 180 / np.pi, 1.0)
     rotated = cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
-    if (verbose): showImg(rotated, 'Imagen rotada')
-
-    edges = mostrarContornos(rotated, 150, 300, verbose)
-
-    if (verbose): showImg(edges, 'Mascara, hsv, imagen rotada')
-
-    # Se encuentran los contornos
-    contorno,_ = cv2.findContours(edges,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-    cont = 0
-
-    cropped_image = None
-    booleano = True
-    for c in contorno:
-        area = cv2.contourArea(c)
-        if (area > 20000):
-            cont = cont + 1
-            x,y,w,h = cv2.boundingRect(c)
-            # Recortamos el contorno encontrado.
-            if (booleano):
-                # rotamos la imagen encontrada
-                cropped_image = rotated[(y+borde_y):(y+h-borde_y), (x+borde_x):(x+w-borde_x)].copy()
-                if (verbose): showImg(cropped_image, "Imagen recortada")
-                booleano = False
-            area = cv2.contourArea(c)
+    if (verbose): cv2.imshow('Imagen rotada', rotated)
     
-    if ~booleano:
-        if (verbose): showImg(cropped_image, 'Imagen rotada y recortada')
-        return cropped_image
-    else:
-        return 0
+    return rotated
     
 def recortarCasillero(image, i, j):
     width = image.shape[1]
@@ -100,7 +88,7 @@ def encontrarContornosPieza(image, mask, area_max=6000, area_min=200):
 # white : es un booleano, true para detectar piezas rojas, false para piezas negras
 def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
     lower_color_black = np.array([0, 0, 0])
-    upper_color_black = np.array([90, 90, 90])
+    upper_color_black = np.array([35, 35, 35])
     mascara1 = cv2.inRange(casilla1, lower_color_black, upper_color_black).copy()
     img, contorno = encontrarContornosPieza(casilla1,mascara1,area_max, area_min)
     if verbose:
@@ -108,71 +96,139 @@ def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
         showImg(img, 'Contornos')
     if contorno > 0:
         if verbose: print('Pieza detectada')
-        return 'b'
+        return 'b', 1
     else:
-        lower_red = np.array([0, 100, 100])
+        lower_red = np.array([0, 50, 50])
         upper_red = np.array([255, 255, 255])
 
         mascara1 = cv2.inRange(casilla1, lower_red, upper_red).copy()
-        img, contorno = encontrarContornosPieza(casilla1,~mascara1,area_max, area_min)
+        img, contorno = encontrarContornosPieza(casilla1,mascara1,area_max, area_min)
 
         if contorno > 0:
             if verbose: print('Pieza detectada')
-            return 'r'
+            return 'r', 2
         else:
             if verbose: print('Casillero vacio')
-            return '.'    
+            return '.', 0    
         
-def descargar_imagen(url, nombre_archivo):
-    response = requests.get(url)
+def solicitarFoto(ruta):
+    requests.get(url_capturar)
+    # tarda como maximo 5 segundos en procesarla el mcu
+    print("Imagen capturada, esperando a que sea procesada por el MCU\n")
+    time.sleep(7)
+    response = requests.get(url_descargar)
     if response.status_code == 200:
-        with open(nombre_archivo, 'wb') as archivo:
+        with open(ruta, 'wb') as archivo:
             archivo.write(response.content)
-        print(f'Imagen descargada como {nombre_archivo}')
+        print(f'Imagen descargada como {ruta}\n')
     else:
         print('Error al descargar la imagen')
 
 
-def main():
-    print("Bienvenido .. \n     Presione 'q' para salir ")
-    url_capturar = 'http://192.168.0.131/capture'
-    url_descargar = 'http://192.168.0.131/saved-photo'
-    nombre_archivo = input("Ingrese nombre del tablero: ")
-    print("\n Presione 'espacio' para capturar las imagenes")
-    while True:
-        if keyboard.is_pressed('space'):
-            print("\n Procesando ...")
-            # enviamos un get para que se capture la foto
-            requests.get(url_capturar)
-            # tarda como maximo 5 segundos en procesarla el mcu
-            print("\n Imagen capturada, esperando a que sea procesada por el MCU")
-            time.sleep(7)
-            nombre = nombre_archivo + ".jpg"
-            descargar_imagen(url_descargar, nombre)
-            
-            img = cv2.imread("/home/tom/universidad/LIDI/cv-tablero/" + nombre)
-            
-            print("\n Aplicando algoritmos de computer vision ... \n Resultado \n")
-            
-            image = rotarRecortarImagen(img, 15,15)
+def calibrar(filename):
+    def onselect(eclick, erelease):
+        if eclick.ydata>erelease.ydata:
+            eclick.ydata,erelease.ydata=erelease.ydata,eclick.ydata
+        if eclick.xdata>erelease.xdata:
+            eclick.xdata,erelease.xdata=erelease.xdata,eclick.xdata
+        ax.set_ylim(erelease.ydata,eclick.ydata)
+        ax.set_xlim(eclick.xdata,erelease.xdata)
+        fig.canvas.draw()
+        selec.x_initial = int(eclick.xdata)
+        selec.y_initial = int(eclick.ydata) 
+        selec.x_release = int(erelease.xdata) 
+        selec.y_release = int(erelease.ydata)
+    input(" Seleccione en la imagen el tablero ...")
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    im = Image.open(filename)
+    arr = np.asarray(im)
+    plt_image = plt.imshow(arr)
+    rs = widgets.RectangleSelector(
+        ax, onselect, interactive=True,
+        props = dict(facecolor='red', edgecolor = 'black', alpha=0.5, fill=True))
+    plt.show()
+    plt.close()
 
-            if isinstance(image, np.ndarray):
-                plt.imshow(image)
-                plt.show()
-                matriz = np.empty((8, 8), dtype=str)
-                for i in range(8):
-                    for j in range(8):
-                        cropped_image = recortarCasillero(image, i,j)
-                        matriz[i][j] = detectarPieza(cropped_image, False, 6000, 400)
-                print(matriz)
-            else:
-                print("Hubo un error al procesar la imagen..") 
-        elif keyboard.is_pressed('q'):
+def main():
+    print("Bienvenido.. \n")
+    print("Debe calibrar el tablero para empezar a usar el software...\n")
+    nombre_archivo = input("Ingrese nombre del tablero: ")
+    nombre = nombre_archivo + ".jpg"
+    ruta = "/home/tom/universidad/LIDI/cv-tablero/" + nombre
+    while True:
+        select = input("\nPresione 'r' para recalibrar manualmente \nPresione 't' para capturar las imagenes \nPresione 'q' para salir \n -- ")
+        if str(select) == "t":
+            print("Procesando ... \n")
+            # enviamos un get para que se capture la foto
+            solicitarFoto(ruta)
+            image = cv2.imread(ruta)
+            
+            print("Aplicando algoritmos de computer vision ... \n Resultado \n")
+            
+            image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
+            image = rotarImagen(image)
+            matriz_color = np.empty((8, 8), dtype=str)
+            matriz_numerica = np.empty((8, 8), dtype=int)
+            for i in range(8):
+                for j in range(8):
+                    casillero = recortarCasillero(image, i,j)
+                    matriz_color[i][j], matriz_numerica[i][j] = detectarPieza(casillero, False, 6000, 400)
+            print(matriz_color)
+            print(matriz_numerica)
+            
+
+        elif str(select) == "r":
+            while (True):
+                print("Capturando imagen...\n")
+                solicitarFoto(ruta)
+                img2 = cv2.imread(ruta)
+                image2 = rotarImagen(img2)
+                cv2.imwrite(ruta, image2)
+                calibrar(ruta)
+                ok = input("Se ha recortado bien la imagen? \n s para si - n para no \n \t-- ") 
+                if ok=='s': 
+                    print(selec.x_initial, selec.y_initial, selec.x_release, selec.y_release)
+                    break
+        elif str(select) == "q":
+            os.remove(ruta)
             print("Saliendo ...")
             return 0  
 
 if __name__ == "__main__":
     main()
 
+# TODO: Recalibramiento.
+#       Enviar desde el esp la imagen en blanco y negro.
+#       
 
 
+#def detectarTableroAutomaticamente(img, borde_x=0, borde_y=0, verbose=False):
+#    edges = mostrarContornos(img, 150, 300, verbose)
+#
+#    if (verbose): showImg(edges, 'Mascara, hsv, imagen rotada')
+#
+#    # Se encuentran los contornos
+#    contorno,_ = cv2.findContours(edges,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+#    cont = 0
+#
+#    cropped_image = None
+#    booleano = True
+#    for c in contorno:
+#        area = cv2.contourArea(c)
+#        if (area > 200000):
+#            cont = cont + 1
+#            x,y,w,h = cv2.boundingRect(c)
+#            # Recortamos el contorno encontrado.
+#            if (booleano):
+#                # rotamos la imagen encontrada
+#                cropped_image = img[(y+borde_y):(y+h-borde_y), (x+borde_x):(x+w-borde_x)].copy()
+#                if (verbose): showImg(cropped_image, "Imagen recortada")
+#                booleano = False
+#            area = cv2.contourArea(c)
+#    
+#    if ~booleano:
+#        if (verbose): showImg(cropped_image, 'Imagen rotada y recortada')
+#        return cropped_image
+#    else:
+#        return 0
