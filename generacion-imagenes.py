@@ -14,17 +14,16 @@ class SquareSelection():
     x_release = 0 
     y_release = 0 
 
-selec = SquareSelection()
-
 class Esp32cam():
     ip_esp = None
     url_capturar =  None
     url_descargar = None
 
+selec = SquareSelection()
+mcu = Esp32cam()
+
 fig = plt.figure()
 ax = fig.add_subplot(111)
-
-ip_esp = None
 
 
     
@@ -122,10 +121,10 @@ def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=200):
             return 0    
               
 def solicitar_foto(ruta):
-    requests.get(Esp32cam.url_capturar)
+    requests.get(mcu.url_capturar)
     print("Imagen capturada, esperando a que sea procesada por el MCU\n")
     time.sleep(7)
-    response = requests.get(Esp32cam.url_descargar)
+    response = requests.get(mcu.url_descargar)
     time.sleep(2)
     if response.status_code == 200:
         with open(ruta, 'wb') as archivo:
@@ -335,18 +334,20 @@ def main():
      \___|_| |_|\___||___/___/_.__/ \___/ \__,_|_|  \__,_|        \___| \_/  
           
     ---------------------- sleepydogo, v1.0 ---------------------------------
-        """)
+          """)
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
-    Esp32cam.ip_esp = input("Ingrese el ip del ESP32-cam: ")
-    Esp32cam.url_capturar = 'http://'+ str(ip_esp)+ '/capture'
-    Esp32cam.url_descargar = 'http://'+ str(ip_esp)+ '/saved-photo'
+    mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
+    mcu.url_capturar = 'http://'+ str(mcu.ip_esp)+ '/capture'
+    mcu.url_descargar = 'http://'+ str(mcu.ip_esp)+ '/saved-photo'
     try: 
         print("Intentando establecer conexion con el dispositivo ...\n")
-        response = requests.get(Esp32cam.url_descargar)
+        response = requests.get(mcu.url_capturar)
+        time.sleep(2)
     except requests.exceptions.RequestException as e:
         print("No se ha podido establecer conexion con el MCU ...\n")
         return 0
+    print("Se ha establecido la conexion correctamente!\n")        
     ruta = os.getcwd() + "\\temp.jpg"
     
     while True:
