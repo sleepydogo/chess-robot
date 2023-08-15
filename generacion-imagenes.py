@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import matplotlib.widgets as widgets
 import os
+import chess, chess.engine
 
 class SquareSelection():
     x_initial = 0 
@@ -98,11 +99,11 @@ def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
         if verbose: print('Pieza detectada')
         return 1
     else:
-        lower_red = np.array([0, 50, 50])
+        lower_red = np.array([0, 45, 45])
         upper_red = np.array([255, 255, 255])
 
         mascara1 = cv2.inRange(casilla1, lower_red, upper_red).copy()
-        img, contorno = encontrarContornosPieza(casilla1,mascara1,area_max, area_min)
+        img, contorno = encontrarContornosPieza(casilla1,~mascara1,area_max, area_min)
 
         if contorno > 0:
             if verbose: print('Pieza detectada')
@@ -124,7 +125,6 @@ def solicitarFoto(ruta):
         print(f'Imagen descargada como {ruta}\n')
     else:
         print('Error al descargar la imagen')
-
 
 def calibrar(filename):
     def onselect(eclick, erelease):
@@ -157,13 +157,10 @@ def tienen_mismos_numeros(array1, array2):
     return conjunto1 == conjunto2
 
 def determinarPuntos(mov0, mov1):
-
-
     matriz_mov_tipos = np.array([[1,-1],  # mov negro 0 
                             [2,-1],  # pieza blanca come pieza negra 1 
                             [1,1],   # pieza negra come pieza blanca 2
                             [2,-2]])  # mov blanco 3 
-
 
     res = mov0 - mov1
 
@@ -174,13 +171,13 @@ def determinarPuntos(mov0, mov1):
     for i in range(8):
         for j in range(8):
             if (res[i][j] != 0):
+                if cont == 2:
+                    return None, None, False
                 puntos[cont][0] = res[i][j] 
                 puntos[cont][1] = i
                 puntos[cont][2] = j
                 cont = cont + 1
-                if cont >= 2:
-                    return None, None, False
-
+                
     diferencias = np.array([puntos[0][0], puntos[1][0]])
 
     caso = -1
@@ -227,6 +224,32 @@ def determinarPuntos(mov0, mov1):
                 destino[1] = puntos[i][2]
     return origen, destino, True
 
+def matriz_a_fen(tablero):
+    fen = ""
+    for fila in tablero:
+        vacios = 0
+        for celda in fila:
+            if celda == ".":
+                vacios += 1
+            else:
+                if vacios > 0:
+                    fen += str(vacios)
+                    vacios = 0
+                fen += celda
+        if vacios > 0:
+            fen += str(vacios)
+        fen += "/"
+    fen = fen[:-1]  # Eliminar la barra diagonal final
+    return fen
+
+def mejor_movimiento(fen):
+    engine = chess.engine.SimpleEngine.popen_uci(os.getcwd() + "\\stockfish\\stockfish-windows-x86-64-avx2.exe")
+    tablero = chess.Board(fen)
+    result = engine.play(tablero, chess.engine.Limit(time=2.0))  
+    print(result.move)
+    engine.quit()
+    return(result)
+
 def main():
     tablero = [['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'], 
            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'], 
@@ -246,14 +269,15 @@ def main():
                                    [2, 2, 2, 2, 2, 2, 2, 2],
                                    [2, 2, 2, 2, 2, 2, 2, 2]])
     matriz_numerica_t1 = np.zeros((8, 8), dtype=int)
-            
+
+    debug = False        
 
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
-    ruta = os.getcwd() + "temp.jpg"
+    ruta = os.getcwd() + "\\temp.jpg"
     
     while True:
-        select = input("\nPresione 'r' para recalibrar manualmente \nPresione 't' para capturar las imagenes \nPresione 'q' para salir \n -- ")
+        select = input(" \n--Menu: \nPresione 'r' para recalibrar manualmente \nPresione 't' para capturar las imagenes \nPresione 'd' para activar el modo debugger \nPresione 'q' para salir \n \n -- ")
         if str(select) == "t":
             print("Procesando ... \n")
             # enviamos un get para que se capture la foto
@@ -263,23 +287,23 @@ def main():
                 solicitarFoto(ruta)
                 image = cv2.imread(ruta)
                 
-                cv2.imshow("Captura", image)
-                cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-                cv2.destroyAllWindows() 
-                
                 print("Aplicando algoritmos de computer vision ... \n Resultado \n")
-            
-                image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
 
-                cv2.imshow("Recortes", image)
-                cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-                cv2.destroyAllWindows() 
-                
                 image = rotarImagen(image)
 
-                cv2.imshow("Rotada", image)
-                cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-                cv2.destroyAllWindows() 
+
+                image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
+
+                if debug:
+                    cv2.imshow("Captura", image)
+                    cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+                    cv2.destroyAllWindows() 
+                    cv2.imshow("Rotada", image)
+                    cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+                    cv2.destroyAllWindows() 
+                    cv2.imshow("Recortes", image)
+                    cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+                    cv2.destroyAllWindows() 
                 
                 for i in range(8):
                     for j in range(8):
@@ -290,18 +314,22 @@ def main():
 
                 origen, destino, status = determinarPuntos(matriz_numerica_t0, matriz_numerica_t1)
                 cont = cont + 1
-                if (status or cont == 5): break
-            if (cont != 5):
+                if (status): break
+                if cont == 5:
+                    print("Ha fallado el reconocimiento.. Intente recalibrando \n")
+            if (status):
                 tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
                 tablero[origen[0]][origen[1]] = '.'
-
-                print(matriz_numerica_t0, matriz_numerica_t1)
+                
+                print("Resultado: \n Tablero leido exitosamente!\n")                
 
                 for i in range(8):
-                    print(tablero[i])
-
-                matriz_numerica_t0 = matriz_numerica_t1.copy()
-                print(matriz_numerica_t0, matriz_numerica_t1)
+                    print(tablero[i])   
+                
+                if (turno_negras):
+                    fen = matriz_a_fen(tablero) + str(" b KQkq - 0 1")
+                    mejor_movimiento(fen)
+                    matriz_numerica_t0 = matriz_numerica_t1.copy()
         elif str(select) == "r":
             while (True):
                 print("Capturando imagen...\n")
@@ -314,10 +342,13 @@ def main():
                 if ok=='s': 
                     print(selec.x_initial, selec.y_initial, selec.x_release, selec.y_release)
                     break
+        elif str(select) == "d":
+            debug = True
         elif str(select) == "q":
             os.remove(ruta)
             print("Saliendo ...")
             return 0  
+        
 
 if __name__ == "__main__":
     main()
