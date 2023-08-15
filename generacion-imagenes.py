@@ -117,6 +117,7 @@ def solicitarFoto(ruta):
     print("Imagen capturada, esperando a que sea procesada por el MCU\n")
     time.sleep(7)
     response = requests.get(url_descargar)
+    time.sleep(2)
     if response.status_code == 200:
         with open(ruta, 'wb') as archivo:
             archivo.write(response.content)
@@ -157,6 +158,7 @@ def tienen_mismos_numeros(array1, array2):
 
 def determinarPuntos(mov0, mov1):
 
+
     matriz_mov_tipos = np.array([[1,-1],  # mov negro 0 
                             [2,-1],  # pieza blanca come pieza negra 1 
                             [1,1],   # pieza negra come pieza blanca 2
@@ -165,20 +167,19 @@ def determinarPuntos(mov0, mov1):
 
     res = mov0 - mov1
 
-    print(res)
-
     puntos = np.zeros((2,3), dtype=int)
     cont = 0
 
-    # puntos =  [indice][res, x, y]
+    # estructura de la variable puntos -->  [indice][res, x, y]
     for i in range(8):
         for j in range(8):
             if (res[i][j] != 0):
-                print(cont)
                 puntos[cont][0] = res[i][j] 
                 puntos[cont][1] = i
                 puntos[cont][2] = j
                 cont = cont + 1
+                if cont >= 2:
+                    return None, None, False
 
     diferencias = np.array([puntos[0][0], puntos[1][0]])
 
@@ -224,10 +225,9 @@ def determinarPuntos(mov0, mov1):
             else:
                 destino[0] = puntos[i][1]
                 destino[1] = puntos[i][2]
-    return origen, destino
+    return origen, destino, True
 
 def main():
-
     tablero = [['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'], 
            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'], 
            ['.', '.', '.', '.', '.', '.', '.', '.'], 
@@ -250,37 +250,58 @@ def main():
 
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
-    ruta = "/home/tom/universidad/LIDI/cv-tablero/temp.jpg"
+    ruta = os.getcwd() + "temp.jpg"
     
     while True:
         select = input("\nPresione 'r' para recalibrar manualmente \nPresione 't' para capturar las imagenes \nPresione 'q' para salir \n -- ")
         if str(select) == "t":
             print("Procesando ... \n")
             # enviamos un get para que se capture la foto
-            solicitarFoto(ruta)
-            image = cv2.imread(ruta)
-
-            print("Aplicando algoritmos de computer vision ... \n Resultado \n")
+            cont = 0
+            while True: 
+                print("Intento " + str(cont) + "\n")
+                solicitarFoto(ruta)
+                image = cv2.imread(ruta)
+                
+                cv2.imshow("Captura", image)
+                cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+                cv2.destroyAllWindows() 
+                
+                print("Aplicando algoritmos de computer vision ... \n Resultado \n")
             
-            image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
-            image = rotarImagen(image)
-            for i in range(8):
-                for j in range(8):
-                    casillero = recortarCasillero(image, i,j)
-                    matriz_numerica_t1[i][j] = detectarPieza(casillero, False, 6000, 400)
+                image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
 
-            origen, destino = determinarPuntos(matriz_numerica_t0, matriz_numerica_t1)
+                cv2.imshow("Recortes", image)
+                cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+                cv2.destroyAllWindows() 
+                
+                image = rotarImagen(image)
 
-            tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
-            tablero[origen[0]][origen[1]] = '.'
-            
-            print(matriz_numerica_t0, matriz_numerica_t1)
+                cv2.imshow("Rotada", image)
+                cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+                cv2.destroyAllWindows() 
+                
+                for i in range(8):
+                    for j in range(8):
+                        casillero = recortarCasillero(image, i,j)
+                        matriz_numerica_t1[i][j] = detectarPieza(casillero, False, 6000, 400)
+                
+                print(matriz_numerica_t1)
 
-            for i in range(8):
-                print(tablero[i])
-            
-            matriz_numerica_t0 = matriz_numerica_t1.copy()
-            print(matriz_numerica_t0, matriz_numerica_t1)
+                origen, destino, status = determinarPuntos(matriz_numerica_t0, matriz_numerica_t1)
+                cont = cont + 1
+                if (status or cont == 5): break
+            if (cont != 5):
+                tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
+                tablero[origen[0]][origen[1]] = '.'
+
+                print(matriz_numerica_t0, matriz_numerica_t1)
+
+                for i in range(8):
+                    print(tablero[i])
+
+                matriz_numerica_t0 = matriz_numerica_t1.copy()
+                print(matriz_numerica_t0, matriz_numerica_t1)
         elif str(select) == "r":
             while (True):
                 print("Capturando imagen...\n")
@@ -301,37 +322,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-# TODO: Recalibramiento.
-#       Enviar desde el esp la imagen en blanco y negro.
-#       
-
-
-#def detectarTableroAutomaticamente(img, borde_x=0, borde_y=0, verbose=False):
-#    edges = mostrarContornos(img, 150, 300, verbose)
-#
-#    if (verbose): showImg(edges, 'Mascara, hsv, imagen rotada')
-#
-#    # Se encuentran los contornos
-#    contorno,_ = cv2.findContours(edges,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-#    cont = 0
-#
-#    cropped_image = None
-#    booleano = True
-#    for c in contorno:
-#        area = cv2.contourArea(c)
-#        if (area > 200000):
-#            cont = cont + 1
-#            x,y,w,h = cv2.boundingRect(c)
-#            # Recortamos el contorno encontrado.
-#            if (booleano):
-#                # rotamos la imagen encontrada
-#                cropped_image = img[(y+borde_y):(y+h-borde_y), (x+borde_x):(x+w-borde_x)].copy()
-#                if (verbose): showImg(cropped_image, "Imagen recortada")
-#                booleano = False
-#            area = cv2.contourArea(c)
-#    
-#    if ~booleano:
-#        if (verbose): showImg(cropped_image, 'Imagen rotada y recortada')
-#        return cropped_image
-#    else:
-#        return 0
