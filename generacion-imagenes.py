@@ -16,35 +16,43 @@ class SquareSelection():
 
 selec = SquareSelection()
 
+class Esp32cam():
+    ip_esp = None
+    url_capturar =  None
+    url_descargar = None
+
 fig = plt.figure()
 ax = fig.add_subplot(111)
 
-url_capturar = 'http://192.168.0.131/capture'
-url_descargar = 'http://192.168.0.131/saved-photo'
+ip_esp = None
 
-def showImg(img, text='image'):
-    cv2.namedWindow(text, cv2.WINDOW_KEEPRATIO)
-    cv2.imshow(text, img)
-    cv2.waitKey()
-    cv2.destroyAllWindows()
+
     
-def mostrarContornos(img,min,max, bool):
+def mostrar_contornos(img,min,max, bool):
     # Aplicar deteccion de bordes utilizando Canny
     edges = cv2.Canny(img, min, max, apertureSize=3)
     if bool:
-        showImg(edges, 'Detector de contornos')
+        cv2.imshow('Detector de contornos', edges)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
     return edges
 
-def rotarImagen(img, verbose=False):
+def rotar_imagen(img, verbose=False):
     # Convertimos la imagen a gris
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).copy()
 
-    if (verbose): cv2.imshow('Imagen en blanco y negro', img_gray)
+    if (verbose): 
+        cv2.imshow('Imagen en blanco y negro', img_gray)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
 
     # Aplicar deteccion de bordes utilizando Canny
-    edges = mostrarContornos(img_gray, 150, 300, verbose)
+    edges = mostrar_contornos(img_gray, 150, 300, verbose)
 
-    if (verbose): cv2.imshow('Contornos detectados', edges)
+    if (verbose): 
+        cv2.imshow('Contornos detectados', edges)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
 
     # Encontrar las lineas presentes en la imagen utilizando la transformada de Hough
     lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, minLineLength=100, maxLineGap=10)
@@ -58,11 +66,14 @@ def rotarImagen(img, verbose=False):
     M = cv2.getRotationMatrix2D(center, angle * 180 / np.pi, 1.0)
     rotated = cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
-    if (verbose): cv2.imshow('Imagen rotada', rotated)
+    if (verbose): 
+        cv2.imshow('Imagen rotada', rotated)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
     
     return rotated
     
-def recortarCasillero(image, i, j):
+def recortar_casillero(image, i, j):
     width = image.shape[1]
     height = image.shape[0]
     start_y = int((height/8)*i)
@@ -72,7 +83,7 @@ def recortarCasillero(image, i, j):
     casillero = image[start_y:end_y, start_x:end_x].copy()
     return casillero
 
-def encontrarContornosPieza(image, mask, area_max=6000, area_min=200):
+def encontrar_contornos_pieza(image, mask, area_max=6000, area_min=200):
     retorno = image.copy()
     contorno,_ = cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
     
@@ -84,17 +95,15 @@ def encontrarContornosPieza(image, mask, area_max=6000, area_min=200):
     cv2.drawContours(retorno, grid_contours, -1, (0, 255, 0), 2)
     return retorno, len(grid_contours)
 
-# casilla1 : imagen recortada del casillero 
-# verbose : imprime las imagenes de los casilleros con los filtros aplicados y contornos detectados
-# white : es un booleano, true para detectar piezas rojas, false para piezas negras
-def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
+def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=200):
     lower_color_black = np.array([0, 0, 0])
     upper_color_black = np.array([35, 35, 35])
     mascara1 = cv2.inRange(casilla1, lower_color_black, upper_color_black).copy()
-    img, contorno = encontrarContornosPieza(casilla1,mascara1,area_max, area_min)
+    img, contorno = encontrar_contornos_pieza(casilla1,mascara1,area_max, area_min)
     if verbose:
-        showImg(casilla1)
-        showImg(img, 'Contornos')
+        cv2.imshow("Casillero recortado: ", casilla1)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()        
     if contorno > 0:
         if verbose: print('Pieza detectada')
         return 1
@@ -103,7 +112,7 @@ def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
         upper_red = np.array([255, 255, 255])
 
         mascara1 = cv2.inRange(casilla1, lower_red, upper_red).copy()
-        img, contorno = encontrarContornosPieza(casilla1,~mascara1,area_max, area_min)
+        img, contorno = encontrar_contornos_pieza(casilla1,~mascara1,area_max, area_min)
 
         if contorno > 0:
             if verbose: print('Pieza detectada')
@@ -111,13 +120,12 @@ def detectarPieza(casilla1, verbose=False, area_max=2000, area_min=200):
         else:
             if verbose: print('Casillero vacio')
             return 0    
-        
-def solicitarFoto(ruta):
-    requests.get(url_capturar)
-    # tarda como maximo 5 segundos en procesarla el mcu
+              
+def solicitar_foto(ruta):
+    requests.get(Esp32cam.url_capturar)
     print("Imagen capturada, esperando a que sea procesada por el MCU\n")
     time.sleep(7)
-    response = requests.get(url_descargar)
+    response = requests.get(Esp32cam.url_descargar)
     time.sleep(2)
     if response.status_code == 200:
         with open(ruta, 'wb') as archivo:
@@ -156,7 +164,7 @@ def tienen_mismos_numeros(array1, array2):
     conjunto2 = set(array2)
     return conjunto1 == conjunto2
 
-def determinarPuntos(mov0, mov1):
+def determinar_puntos(mov0, mov1, cont_peon_capturas):
     matriz_mov_tipos = np.array([[1,-1],  # mov negro 0 
                             [2,-1],  # pieza blanca come pieza negra 1 
                             [1,1],   # pieza negra come pieza blanca 2
@@ -199,6 +207,7 @@ def determinarPuntos(mov0, mov1):
                 destino[0] = int(puntos[i][1])
                 destino[1] = int(puntos[i][2])
     elif (caso == 1):
+        cont_peon_capturas = cont_peon_capturas + 1
         for i in range(2):
             if (puntos[i][0] == 2): 
                 origen[0] = puntos[i][1]
@@ -207,6 +216,7 @@ def determinarPuntos(mov0, mov1):
                 destino[0] = puntos[i][1]
                 destino[1] = puntos[i][2]
     elif (caso == 2):
+        cont_peon_capturas = cont_peon_capturas + 1
         for i in range(2):
             if (mov1[puntos[i][1]][puntos[i][2]] == 0): 
                 origen[0] = puntos[i][1]
@@ -246,12 +256,12 @@ def mejor_movimiento(fen):
     engine = chess.engine.SimpleEngine.popen_uci(os.getcwd() + "\\stockfish\\stockfish-windows-x86-64-avx2.exe")
     tablero = chess.Board(fen)
     result = engine.play(tablero, chess.engine.Limit(time=2.0))  
-    print(result.move)
+    print("Movimiento a realizar --> " + result.move + "\n")
     engine.quit()
     return(result)
 
-def main():
-    tablero = [['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'], 
+def iniciar_matrices():
+    m1 = [['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'], 
            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'], 
            ['.', '.', '.', '.', '.', '.', '.', '.'], 
            ['.', '.', '.', '.', '.', '.', '.', '.'], 
@@ -260,7 +270,7 @@ def main():
            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'], 
            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']]
     
-    matriz_numerica_t0 = np.array([[1, 1, 1, 1, 1, 1, 1, 1],
+    m2 = np.array([[1, 1, 1, 1, 1, 1, 1, 1],
                                    [1, 1, 1, 1, 1, 1, 1, 1],
                                    [0, 0, 0, 0, 0, 0, 0, 0],
                                    [0, 0, 0, 0, 0, 0, 0, 0],
@@ -268,86 +278,119 @@ def main():
                                    [0, 0, 0, 0, 0, 0, 0, 0],
                                    [2, 2, 2, 2, 2, 2, 2, 2],
                                    [2, 2, 2, 2, 2, 2, 2, 2]])
-    matriz_numerica_t1 = np.zeros((8, 8), dtype=int)
+    m3 = np.zeros((8, 8), dtype=int)
+    return m1.copy(),m2.copy(),m3.copy()
 
+def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas, debug=False):
+    print("Procesando ... \n")
+    for i in range(5):  
+        print("Intento " + str(i) + "\n")
+        solicitar_foto(ruta)
+        image = cv2.imread(ruta)
+
+        print("Aplicando algoritmos de computer vision ... \n Resultado \n")
+        image = rotar_imagen(image)
+        image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
+
+        for i in range(8):
+            for j in range(8):
+                casillero = recortar_casillero(image, i,j)
+                matriz_numerica_t1[i][j] = detectar_pieza(casillero, False, 6000, 400)
+
+        if debug:
+            cv2.imshow("Captura", image)
+            cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+            cv2.destroyAllWindows() 
+            cv2.imshow("Rotada", image)
+            cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+            cv2.destroyAllWindows() 
+            cv2.imshow("Recortes", image)
+            cv2.waitKey(0)  # Esperar hasta que se presione una tecla
+            cv2.destroyAllWindows() 
+            print(matriz_numerica_t1)
+
+        origen, destino, status = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
+        if not status: 
+            print("Ha fallado el reconocimiento.. Intente recalibrando \n")
+            break
+    if status:
+        tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
+        tablero[origen[0]][origen[1]] = '.'
+
+        print("Resultado: \n Tablero leido exitosamente!\n")                
+        for i in range(8):
+            print(tablero[i])   
+        cont_jugadas = cont_jugadas + 1
+
+        return status, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas
+
+def main():
     debug = False        
 
+    print(f"""
+          _                   _                         _                  
+      ___| |__   ___  ___ ___| |__   ___   __ _ _ __ __| |         _____   __
+     / __| '_ \ / _ \/ __/ __| '_ \ / _ \ / _` | '__/ _` | _____  / __\ \ / /
+    | (__| | | |  __/\__ \__ \ |_) | (_) | (_| | | | (_| ||_____|| (__ \ V / 
+     \___|_| |_|\___||___/___/_.__/ \___/ \__,_|_|  \__,_|        \___| \_/  
+          
+    ---------------------- sleepydogo, v1.0 ---------------------------------
+        """)
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
+    Esp32cam.ip_esp = input("Ingrese el ip del ESP32-cam: ")
+    Esp32cam.url_capturar = 'http://'+ str(ip_esp)+ '/capture'
+    Esp32cam.url_descargar = 'http://'+ str(ip_esp)+ '/saved-photo'
+    try: 
+        print("Intentando establecer conexion con el dispositivo ...\n")
+        response = requests.get(Esp32cam.url_descargar)
+    except requests.exceptions.RequestException as e:
+        print("No se ha podido establecer conexion con el MCU ...\n")
+        return 0
     ruta = os.getcwd() + "\\temp.jpg"
     
     while True:
-        select = input(" \n--Menu: \nPresione 'r' para recalibrar manualmente \nPresione 't' para capturar las imagenes \nPresione 'd' para activar el modo debugger \nPresione 'q' para salir \n \n -- ")
-        if str(select) == "t":
-            print("Procesando ... \n")
-            # enviamos un get para que se capture la foto
-            cont = 0
-            while True: 
-                print("Intento " + str(cont) + "\n")
-                solicitarFoto(ruta)
-                image = cv2.imread(ruta)
-                
-                print("Aplicando algoritmos de computer vision ... \n Resultado \n")
-
-                image = rotarImagen(image)
-
-
-                image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
-
-                if debug:
-                    cv2.imshow("Captura", image)
-                    cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-                    cv2.destroyAllWindows() 
-                    cv2.imshow("Rotada", image)
-                    cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-                    cv2.destroyAllWindows() 
-                    cv2.imshow("Recortes", image)
-                    cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-                    cv2.destroyAllWindows() 
-                
-                for i in range(8):
-                    for j in range(8):
-                        casillero = recortarCasillero(image, i,j)
-                        matriz_numerica_t1[i][j] = detectarPieza(casillero, False, 6000, 400)
-                
-                print(matriz_numerica_t1)
-
-                origen, destino, status = determinarPuntos(matriz_numerica_t0, matriz_numerica_t1)
-                cont = cont + 1
-                if (status): break
-                if cont == 5:
-                    print("Ha fallado el reconocimiento.. Intente recalibrando \n")
-            if (status):
-                tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
-                tablero[origen[0]][origen[1]] = '.'
-                
-                print("Resultado: \n Tablero leido exitosamente!\n")                
-
-                for i in range(8):
-                    print(tablero[i])   
-                
-                if (turno_negras):
-                    fen = matriz_a_fen(tablero) + str(" b KQkq - 0 1")
+        select = input(" \n--Menu: \n r - para recalibrar manualmente \n j - para jugar \n d - activar o desactivar el modo debugger \n q - para salir\n \n -- ")
+        if select == 'j':
+            tablero, matriz_numerica_t0, matriz_numerica_t1 = iniciar_matrices()
+            print("Usted, jugara con piezas rojas. Realize el primer movimiento y luego capture el tablero. \nSe mostrara una representación del tablero digitalizada y cuando sea el turno de las piezas negras sera proveido con una jugada que usted debera mover en el tablero, luego continuar con un movimiento suyo y finalmente volver a capturar el tablero.\n")
+            cont_jugadas = 0
+            cont_peon_capturas = 0
+            while (True):
+                captura = input("Presione enter para capturar el tablero, 'q' para salir \n")    
+                if captura == "q":
+                    os.remove(ruta)
+                    print("Saliendo ...")
+                    break
+                # Procesamiento jugada roja
+                lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
+                if (lectura_correcta):
+                    fen = matriz_a_fen(tablero) + str(" w KQkq - " + str(cont_peon_capturas) + " " + str(cont_jugadas))
+                    print(fen)
                     mejor_movimiento(fen)
-                    matriz_numerica_t0 = matriz_numerica_t1.copy()
-        elif str(select) == "r":
+                else: 
+                    os.remove(ruta)
+                    print("Saliendo ...")
+                    break
+        elif select == "r":
             while (True):
                 print("Capturando imagen...\n")
-                solicitarFoto(ruta)
+                solicitar_foto(ruta)
                 img2 = cv2.imread(ruta)
-                image2 = rotarImagen(img2)
+                image2 = rotar_imagen(img2)
                 cv2.imwrite(ruta, image2)
                 calibrar(ruta)
                 ok = input("Se ha recortado bien la imagen? \n s para si - n para no \n \t-- ") 
                 if ok=='s': 
                     print(selec.x_initial, selec.y_initial, selec.x_release, selec.y_release)
                     break
-        elif str(select) == "d":
-            debug = True
-        elif str(select) == "q":
-            os.remove(ruta)
+        elif select == "d":
+            if debug: debug = False
+            else: debug = True
+        elif select == "q":
             print("Saliendo ...")
-            return 0  
+            break
+    return 0  
         
 
 if __name__ == "__main__":
