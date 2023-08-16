@@ -255,7 +255,7 @@ def mejor_movimiento(fen):
     engine = chess.engine.SimpleEngine.popen_uci(os.getcwd() + "\\stockfish\\stockfish-windows-x86-64-avx2.exe")
     tablero = chess.Board(fen)
     result = engine.play(tablero, chess.engine.Limit(time=2.0))  
-    print("Movimiento a realizar --> " + result.move + "\n")
+    print("Movimiento a realizar --> " + str(result.move) + "\n")
     engine.quit()
     return(result)
 
