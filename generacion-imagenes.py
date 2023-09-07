@@ -24,9 +24,7 @@ mcu = Esp32cam()
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
-
-
-    
+   
 def mostrar_contornos(img,min,max, bool):
     # Aplicar deteccion de bordes utilizando Canny
     edges = cv2.Canny(img, min, max, apertureSize=3)
@@ -129,6 +127,15 @@ def solicitar_foto(ruta):
     if response.status_code == 200:
         with open(ruta, 'wb') as archivo:
             archivo.write(response.content)
+        # Rotacion de imagen
+        imagen = cv2.imread(ruta)
+        angulo_rotacion = 90
+        alto, ancho = imagen.shape[:2]
+        centro = (ancho // 2, alto // 2)
+        matriz_rotacion = cv2.getRotationMatrix2D(centro, angulo_rotacion, 1.0)
+        imagen_rotada = cv2.warpAffine(imagen, matriz_rotacion, (ancho, alto))
+        cv2.imwrite(ruta, imagen_rotada)
+        
         print(f'Imagen descargada como {ruta}\n')
     else:
         print('Error al descargar la imagen')
@@ -252,31 +259,31 @@ def matriz_a_fen(tablero):
     return fen
 
 def mejor_movimiento(fen):
-    engine = chess.engine.SimpleEngine.popen_uci(os.getcwd() + "\\stockfish\\stockfish-windows-x86-64-avx2.exe")
+    engine = chess.engine.SimpleEngine.popen_uci(os.getcwd() + "/Stockfish/src/stockfish")
     tablero = chess.Board(fen)
     result = engine.play(tablero, chess.engine.Limit(time=2.0))  
     print("Movimiento a realizar --> " + str(result.move) + "\n")
     engine.quit()
-    return(result)
+    return result
 
 def iniciar_matrices():
     m1 = [['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'], 
-           ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'], 
-           ['.', '.', '.', '.', '.', '.', '.', '.'], 
-           ['.', '.', '.', '.', '.', '.', '.', '.'], 
-           ['.', '.', '.', '.', '.', '.', '.', '.'], 
-           ['.', '.', '.', '.', '.', '.', '.', '.'], 
-           ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'], 
-           ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']]
+          ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'], 
+          ['.', '.', '.', '.', '.', '.', '.', '.'], 
+          ['.', '.', '.', '.', '.', '.', '.', '.'], 
+          ['.', '.', '.', '.', '.', '.', '.', '.'], 
+          ['.', '.', '.', '.', '.', '.', '.', '.'], 
+          ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'], 
+          ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']]
     
     m2 = np.array([[1, 1, 1, 1, 1, 1, 1, 1],
-                                   [1, 1, 1, 1, 1, 1, 1, 1],
-                                   [0, 0, 0, 0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0, 0, 0, 0],
-                                   [2, 2, 2, 2, 2, 2, 2, 2],
-                                   [2, 2, 2, 2, 2, 2, 2, 2]])
+                   [1, 1, 1, 1, 1, 1, 1, 1],
+                   [0, 0, 0, 0, 0, 0, 0, 0],
+                   [0, 0, 0, 0, 0, 0, 0, 0],
+                   [0, 0, 0, 0, 0, 0, 0, 0],
+                   [0, 0, 0, 0, 0, 0, 0, 0],
+                   [2, 2, 2, 2, 2, 2, 2, 2],
+                   [2, 2, 2, 2, 2, 2, 2, 2]])
     m3 = np.zeros((8, 8), dtype=int)
     return m1.copy(),m2.copy(),m3.copy()
 
@@ -294,22 +301,13 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
         for i in range(8):
             for j in range(8):
                 casillero = recortar_casillero(image, i,j)
-                matriz_numerica_t1[i][j] = detectar_pieza(casillero, False, 6000, 400)
+                matriz_numerica_t1[i][j] = detectar_pieza(casillero, False, 6000, 600)
 
-        if debug:
-            cv2.imshow("Captura", image)
-            cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-            cv2.destroyAllWindows() 
-            cv2.imshow("Rotada", image)
-            cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-            cv2.destroyAllWindows() 
-            cv2.imshow("Recortes", image)
-            cv2.waitKey(0)  # Esperar hasta que se presione una tecla
-            cv2.destroyAllWindows() 
-            print(matriz_numerica_t1)
+        print(matriz_numerica_t1)
 
         origen, destino, status = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
-        if not status: 
+        if status: break
+        if i == 4 and not status: 
             print("Ha fallado el reconocimiento.. Intente recalibrando \n")
             break
     if status:
@@ -322,6 +320,29 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
         cont_jugadas = cont_jugadas + 1
 
         return status, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas
+
+def tablero_a_matriz_numerica(tablero):
+    matriz = np.zeros((8, 8), dtype=int)
+    matriz2 = np.zeros((8, 8), dtype=str)
+    cont = 0
+    for i in range(0, len(tablero.__str__()), 2):
+        if (tablero.__str__()[i].isalpha()):
+            if (tablero.__str__()[i].isupper()):
+                matriz[i//16][cont] = 2
+            elif (tablero.__str__()[i].islower()):
+                matriz[i//16][cont] = 1
+            matriz2[i//16][cont] = "."
+        matriz2[i//16][cont] = tablero.__str__()[i]
+        cont = cont + 1 
+        if (cont == 8): cont = 0
+    return matriz, matriz, matriz2
+
+def extraer_contadores_string_fen(fen):
+    parts = fen.split('-')
+    number_list = parts[1].split()
+    numbers = [int(number) for number in number_list]
+    return numbers[0],numbers[1] 
+
 
 def main():
     debug = False        
@@ -337,7 +358,9 @@ def main():
           """)
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
-    mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
+    #desahilitado para las pruebas, TODO: activar
+    #mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
+    mcu.ip_esp = "192.168.0.131"
     mcu.url_capturar = 'http://'+ str(mcu.ip_esp)+ '/capture'
     mcu.url_descargar = 'http://'+ str(mcu.ip_esp)+ '/saved-photo'
     try: 
@@ -348,15 +371,15 @@ def main():
         print("No se ha podido establecer conexion con el MCU ...\n")
         return 0
     print("Se ha establecido la conexion correctamente!\n")        
-    ruta = os.getcwd() + "\\temp.jpg"
+    ruta = os.getcwd() + "/temp.jpg"
     
     while True:
         select = input(" \n--Menu: \n r - para recalibrar manualmente \n j - para jugar \n d - activar o desactivar el modo debugger \n q - para salir\n \n -- ")
         if select == 'j':
             tablero, matriz_numerica_t0, matriz_numerica_t1 = iniciar_matrices()
-            print("Usted, jugara con piezas rojas. Realize el primer movimiento y luego capture el tablero. \nSe mostrara una representación del tablero digitalizada y cuando sea el turno de las piezas negras sera proveido con una jugada que usted debera mover en el tablero, luego continuar con un movimiento suyo y finalmente volver a capturar el tablero.\n")
             cont_jugadas = 0
             cont_peon_capturas = 0
+            chessboard = chess.Board()
             while (True):
                 captura = input("Presione enter para capturar el tablero, 'q' para salir \n")    
                 if captura == "q":
@@ -364,11 +387,21 @@ def main():
                     print("Saliendo ...")
                     break
                 # Procesamiento jugada roja
+                # Leo el tablero
                 lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
                 if (lectura_correcta):
-                    fen = matriz_a_fen(tablero) + str(" w KQkq - " + str(cont_peon_capturas) + " " + str(cont_jugadas))
+                    # Lo transformo a fen
+                    fen = matriz_a_fen(tablero) + str(" b KQkq - " + str(cont_peon_capturas) + " " + str(cont_jugadas))
                     print(fen)
-                    mejor_movimiento(fen)
+                    chessboard = chess.Board(fen)
+                    # Ingreso el string fen al chess engine
+                    move = mejor_movimiento(fen)
+                    # Pusheo el movimiento al tablero 
+                    chessboard.push_san(str(move.move))
+                    matriz_numerica_t0, matriz_numerica_t1, tablero  = tablero_a_matriz_numerica(chessboard)
+                    cont_peon_capturas, cont_jugadas = extraer_contadores_string_fen(chessboard.fen())
+                    for i in range(8):
+                        print(tablero[i])
                 else: 
                     os.remove(ruta)
                     print("Saliendo ...")
@@ -386,8 +419,12 @@ def main():
                     print(selec.x_initial, selec.y_initial, selec.x_release, selec.y_release)
                     break
         elif select == "d":
-            if debug: debug = False
-            else: debug = True
+            if debug: 
+                debug = False
+                print("Debug desactivado\n")
+            else: 
+                debug = True
+                print("Debug activado\n")
         elif select == "q":
             print("Saliendo ...")
             break
@@ -396,4 +433,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
