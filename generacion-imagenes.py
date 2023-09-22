@@ -8,6 +8,8 @@ import matplotlib.widgets as widgets
 import os
 import chess, chess.engine
 
+from brazo import RoboticArm
+
 class SquareSelection():
     x_initial = 0 
     y_initial = 0 
@@ -170,7 +172,7 @@ def tienen_mismos_numeros(array1, array2):
     conjunto2 = set(array2)
     return conjunto1 == conjunto2
 
-def determinar_puntos(mov0, mov1, cont_peon_capturas):
+def determinar_puntos(mov0, mov1, cont_peon_capturas=0):
     matriz_mov_tipos = np.array([[1,-1],  # mov negro 0 
                             [2,-1],  # pieza blanca come pieza negra 1 
                             [1,1],   # pieza negra come pieza blanca 2
@@ -195,7 +197,7 @@ def determinar_puntos(mov0, mov1, cont_peon_capturas):
     diferencias = np.array([puntos[0][0], puntos[1][0]])
 
     caso = -1
-
+    captura = False
     for i in range(4):
         if (tienen_mismos_numeros(diferencias, matriz_mov_tipos[i])):
             caso = i
@@ -214,6 +216,7 @@ def determinar_puntos(mov0, mov1, cont_peon_capturas):
                 destino[1] = int(puntos[i][2])
     elif (caso == 1):
         cont_peon_capturas = cont_peon_capturas + 1
+        captura = True
         for i in range(2):
             if (puntos[i][0] == 2): 
                 origen[0] = puntos[i][1]
@@ -223,6 +226,7 @@ def determinar_puntos(mov0, mov1, cont_peon_capturas):
                 destino[1] = puntos[i][2]
     elif (caso == 2):
         cont_peon_capturas = cont_peon_capturas + 1
+        captura = True
         for i in range(2):
             if (mov1[puntos[i][1]][puntos[i][2]] == 0): 
                 origen[0] = puntos[i][1]
@@ -238,7 +242,7 @@ def determinar_puntos(mov0, mov1, cont_peon_capturas):
             else:
                 destino[0] = puntos[i][1]
                 destino[1] = puntos[i][2]
-    return origen, destino, True
+    return origen, destino, True, captura
 
 def matriz_a_fen(tablero):
     fen = ""
@@ -303,9 +307,10 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
                 casillero = recortar_casillero(image, i,j)
                 matriz_numerica_t1[i][j] = detectar_pieza(casillero, False, 6000, 600)
 
-        print(matriz_numerica_t1)
+        print('Tablero numerico :  \n', matriz_numerica_t1)
 
         origen, destino, status = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
+        
         if status: break
         if i == 4 and not status: 
             print("Ha fallado el reconocimiento.. Intente recalibrando \n")
@@ -348,13 +353,14 @@ def main():
     debug = False        
 
     print(f"""
-          _                   _                         _                  
-      ___| |__   ___  ___ ___| |__   ___   __ _ _ __ __| |         _____   __
-     / __| '_ \ / _ \/ __/ __| '_ \ / _ \ / _` | '__/ _` | _____  / __\ \ / /
-    | (__| | | |  __/\__ \__ \ |_) | (_) | (_| | | | (_| ||_____|| (__ \ V / 
-     \___|_| |_|\___||___/___/_.__/ \___/ \__,_|_|  \__,_|        \___| \_/  
+      ____       _           _   _                 ____ _                   
+     |  _ \ ___ | |__   ___ | |_(_) ___           / ___| |__   ___  ___ ___ 
+     | |_) / _ \| '_ \ / _ \| __| |/ __|  _____  | |   | '_ \ / _ \/ __/ __|
+     |  _ < (_) | |_) | (_) | |_| | (__  |_____| | |___| | | |  __/\__ \__ \\
+     |_| \_\___/|_.__/ \___/ \__|_|\___|          \____|_| |_|\___||___/___/
+
           
-    ---------------------- sleepydogo, v1.0 ---------------------------------
+    ---------------------- sleepydogo, v1.1 ---------------------------------
           """)
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
@@ -376,7 +382,10 @@ def main():
     while True:
         select = input(" \n--Menu: \n r - para recalibrar manualmente \n j - para jugar \n d - activar o desactivar el modo debugger \n q - para salir\n \n -- ")
         if select == 'j':
+            arm = RoboticArm()
+            arm.init()
             tablero, matriz_numerica_t0, matriz_numerica_t1 = iniciar_matrices()
+            matriz_numerica_mov_ia = None
             cont_jugadas = 0
             cont_peon_capturas = 0
             chessboard = chess.Board()
@@ -385,11 +394,13 @@ def main():
                 if captura == "q":
                     os.remove(ruta)
                     print("Saliendo ...")
+                    arm.close()
                     break
                 # Procesamiento jugada roja
                 # Leo el tablero
                 lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
                 if (lectura_correcta):
+                    matriz_numerica_mov_ia = matriz_numerica_t1
                     # Lo transformo a fen
                     fen = matriz_a_fen(tablero) + str(" b KQkq - " + str(cont_peon_capturas) + " " + str(cont_jugadas))
                     print(fen)
@@ -399,12 +410,20 @@ def main():
                     # Pusheo el movimiento al tablero 
                     chessboard.push_san(str(move.move))
                     matriz_numerica_t0, matriz_numerica_t1, tablero  = tablero_a_matriz_numerica(chessboard)
+                    print('matriz numerica 0: ', matriz_numerica_mov_ia)
+                    print('matriz numerica 1: ', matriz_numerica_t1)
                     cont_peon_capturas, cont_jugadas = extraer_contadores_string_fen(chessboard.fen())
                     for i in range(8):
                         print(tablero[i])
+                    origen, destino, status, captura = determinar_puntos(matriz_numerica_mov_ia, matriz_numerica_t1)
+                    print('ORIGEN BRAZO: ', origen,'\n DESTINO  BRAZO: ', destino)
+                    if captura:
+                        arm.sacarPieza(7-destino[0], 7-destino[1])
+                    arm.mover(7-origen[0], 7-origen[1], 7-destino[0], 7-destino[1])
                 else: 
                     os.remove(ruta)
                     print("Saliendo ...")
+                    arm.close()
                     break
         elif select == "r":
             while (True):

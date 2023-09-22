@@ -2,8 +2,7 @@
 
 ### Descripcion
 
-La idea es crear un algoritmo que permita detectar que casilleros estan ocupados desde una foto a un tablero de ajedrez.
-La foto debe ser sacada una ubicacion perpendicular por encima del objeto, con un margen de oscilacion de hasta 20 grados hacia los costados.
+No hay documentacion y el codigo esta desordenado  B) >:^) 
 
 <pre>
            __    __    __    __         
