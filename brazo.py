@@ -6,152 +6,148 @@ import csv
 
 class RoboticArm:
 
-    arduino = None
-    data = None
-    
-    calibrar_STR =  'G28 \r\n'.encode()
-    cerrar_STR =    'M3 \r\n'.encode()
-    abrir_STR =     'M5 \r\n'.encode()
-    HOME = 'G1 X0 Y240 Z180 \r\n'.encode()
-    REST = 'G1 X0 Y100 Z150 \r\n'.encode()
+    SERIAL_DEV = None
+    DATA = None
+
+    CALIBRAR =  'G28 \r\n'.encode('ascii')
+    CERRAR_PINZA =    'M3 \r\n'.encode('ascii')
+    ABRIR_PINZA =     'M5 \r\n'.encode('ascii')
+    HOME = 'G1 X0 Y240 Z180 \r\n'.encode('ascii')
+    REST = 'G1 X0 Y100 Z150 \r\n'.encode('ascii')
 
     # Estas son las alturas a las que se posiciona la pinza
-    z_superior = [85,120,130]   # por encima de la pieza
-    z_inferior = [60, 70]       # lo que debe bajar para agarrarla 
+    #z_superior = [85,120,130]    por encima de la pieza
+    #z_inferior = [60, 70]        lo que debe bajar para agarrarla 
     
-    # Division de filas por las alturas de posicionamiento
-    filas_bajas = [0,1,2]
-    filas_medias = [3,4,5]
-    filas_altas = [6,7]
-    def create_comand(self, row, col, verbose=False):
-        posx, posy = self.data[row][col].split(';')
-        command = 'G1 '+ posx + ' ' + posy
-        if row in self.filas_bajas: 
-            command = command + ' Z85 \r\n'
-        elif row in self.filas_medias: 
-            command = command + ' Z120 \r\n'
-        else: 
-            command = command + ' Z130 \r\n'
+
+    def create_comand(self, row, col, h, verbose=False):
+        posx, posy = self.DATA[row][col].split(';')
+        print(posx)
+        command = 'G1 ' +posx+ ' ' +posy+ ' Z%d \r\n' % h
         if verbose: print(command)
-        return command.encode()
+        return command.encode('ascii')
 
 
     def calibrar(self):
-        print('calibrando...')
-        self.arduino.write(self.calibrar_STR)
-        self.arduino.readline()
-        self.arduino.write(self.REST)
-        self.arduino.readline()
+        print('Calibrando...')
+        self.SERIAL_DEV.write(self.CALIBRAR)
+        self.SERIAL_DEV.readline()
+        self.SERIAL_DEV.write(self.REST)
+        self.SERIAL_DEV.readline()
         return
 
     def abrirPinza(self): 
-        self.arduino.write(self.abrir_STR)
-        self.arduino.readline()
+        self.SERIAL_DEV.write(self.ABRIR_PINZA)
+        self.SERIAL_DEV.readline()
         return
 
     def cerrarPinza(self): 
-        self.arduino.write(self.cerrar_STR)
-        self.arduino.readline()
+        self.SERIAL_DEV.write(self.CERRAR_PINZA)
+        self.SERIAL_DEV.readline()
         return
     
     def home(self):
-        self.arduino.write(self.HOME)
-        self.arduino.readline()
+        self.SERIAL_DEV.write(self.HOME)
+        self.SERIAL_DEV.readline()
         time.sleep(0.5)
-        self.arduino.write(self.REST)
-        self.arduino.readline()
+        
+    def rest(self):
+        self.SERIAL_DEV.write(self.REST)
+        self.SERIAL_DEV.readline()
+        time.sleep(0.5)
+    
+    def create_matrix(self):
+        with open("rutinas-movimiento.csv", "r") as csvfile:
+            csv_reader = csv.reader(csvfile)
+            DATA = []
+            for row in csv_reader:
+                DATA.append(row)
+        self.DATA = DATA
+        print("MATRIZ CARGADA..")
 
     def init(self):
-        def create_matrix():
-            with open("rutinas-movimiento.csv", "r") as csvfile:
-                csv_reader = csv.reader(csvfile)
-                data = []
-                for row in csv_reader:
-                    data.append(row)
-            return data
-        self.arduino = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
-        self.data = create_matrix()
-        self.arduino.reset_output_buffer()
-        message = self.arduino.readline().decode('UTF-8')
+        self.SERIAL_DEV = serial.Serial('/dev/ttyACM0', 9600, timeout=3.0)
+        self.create_matrix()
+        self.SERIAL_DEV.flush()
+        message = self.SERIAL_DEV.readline().decode('UTF-8')
         print(message)
         self.abrirPinza()
         self.cerrarPinza()
-        self.abrirPinza()
         self.calibrar()
-    
-    def bajarPinza(self, posx_ini):
-        if (posx_ini in self.filas_bajas):
-            self.arduino.write()
-        
-    def posicionamiento_origen(self, x, y, verbose=False):
-        posx, posy = self.data[x][y].split(';')
-        command = 'G1 '+ posx + ' ' + posy
-        if x in self.filas_bajas: 
-            command = command + ' Z85 \r\n'
-        elif x in self.filas_medias: 
-            command = command + ' Z120 \r\n'
-        else: 
-            command = command + ' Z130 \r\n'
-        if verbose: print(command)
-        return command.encode()
-
-    def bajarPinza(self, x):
-        if x in self.filas_bajas: 
-            self.arduino.write('G1 Z60 \r\n'.encode())
-        else:
-            self.arduino.write('G1 Z70 \r\n'.encode())
-
 
     def mover(self, posx_ini, posy_ini, posx_fin, posy_fin):
-        command = self.posicionamiento_origen(posx_ini, posy_ini)
-        self.arduino.write(command)
-        self.arduino.readline()
-        self.bajarPinza(posx_ini)
-        self.arduino.readline()
-        self.abrirPinza()
+        # Posiciona en x,y a 120 de altura
+        command = self.create_comand(posx_ini, posy_ini, 120)
+        self.SERIAL_DEV.write(command)
+        time.sleep(2)
+        self.SERIAL_DEV.write('G1 Z70 \r\n'.encode('ascii'))
         self.cerrarPinza()
-        self.arduino.readline()
-        self.arduino.write('G1 Z160 \r\n'.encode())
-        self.arduino.readline()
-        command = self.posicionamiento_origen(posx_fin, posy_fin)
-        self.arduino.write(command)
-        self.arduino.readline()
-        self.bajarPinza(posx_ini)
-        self.arduino.readline()
-        self.cerrarPinza()
+        self.SERIAL_DEV.write('G1 Z80 \r\n'.encode('ascii'))    
+        time.sleep(2)
+        try: 
+            resp = self.SERIAL_DEV.readline().decode()
+            print("Respuesta: %s " % resp)
+        except:
+            pass
+        command = self.create_comand(posx_fin, posy_fin, 130)
+        self.SERIAL_DEV.write(command)
+        time.sleep(2)
+        self.SERIAL_DEV.write('G1 Z70 \r\n'.encode('ascii'))
         self.abrirPinza()
-        self.arduino.readline()
-        self.arduino.write('G1 Z130 \r\n'.encode())
-        self.arduino.readline()
-        self.home()
-        return 0
+        self.SERIAL_DEV.write('G1 Z80 \r\n'.encode('ascii'))
+        time.sleep(2)
+        try: 
+            resp = self.SERIAL_DEV.readline().decode()
+            print("Respuesta: %s " % resp)
+        except:
+            pass
+        self.rest()
 
 
     def close(self):
-        self.arduino.close()
+        self.SERIAL_DEV.close()
+        time.sleep(5)
         print('Se ha cerrado la conexion serial exitosamente..')
 
     def sacarPieza(self, posx_ini, posy_ini):
         command = self.posicionamiento_origen(posx_ini, posy_ini)
-        self.arduino.write(command)
-        self.arduino.readline()
-        self.bajarPinza(posx_ini)
-        self.arduino.readline()
+        self.SERIAL_DEV.write(command + 'M3 \r\n'.encode('ascii') + 'G1 Z125 \r\n'.encode('ascii') + 'G1 X-170 Y220 \r\n'.encode('ascii'))
         self.abrirPinza()
-        self.cerrarPinza()
-        self.arduino.readline()
-        self.arduino.write('G1 Z160 \r\n'.encode())
-        self.arduino.readline()
-        self.arduino.write('G1 X-170 Y220 \r\n'.encode())
-        self.arduino.readline()
         self.home()
 
 def main():
     arm = RoboticArm()
     arm.init()
-    arm.mover(1,4,3,4)
+    #arm.mover(7,6,6,6)
+
+    # TEST: Movimiento por columnas
+    #for i in range(8):
+        #arm.mover(7,i,6,i)
+        #arm.mover(6,i,5,i)
+        #arm.mover(5,i,4,i)
+        #arm.mover(4,i,3,i)
+        #arm.mover(3,i,2,i)
+        #arm.mover(2,i,1,i)
+        #arm.mover(1,i,0,i)
+    
+    # TEST: Avance progresivo de peones
+    #for i in range(7):
+    #    arm.mover(7-i,0,7-i-1,0)
+    #    arm.mover(7-i,1,7-i-1,1)
+    #    arm.mover(7-i,2,7-i-1,2)
+    #    arm.mover(7-i,3,7-i-1,3)
+    #    arm.mover(7-i,4,7-i-1,4)
+    #    arm.mover(7-i,5,7-i-1,5)
+    #    arm.mover(7-i,6,7-i-1,6)
+    #    arm.mover(7-i,7,7-i-1,7)
+    #    arm.calibrar()
+    #    arm.create_matrix()
+
+    arm.mover(1,0,0,0)
+    arm.mover(1,7,0,7)
+    
+
     arm.close()
-    return 
 
 if __name__ == "__main__":
     main()
