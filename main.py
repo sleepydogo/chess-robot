@@ -11,10 +11,10 @@ import chess, chess.engine
 from brazo import RoboticArm
 
 class SquareSelection():
-    x_initial = 0 
-    y_initial = 0 
-    x_release = 0 
-    y_release = 0 
+    x_initial = 403 
+    y_initial = 122
+    x_release = 1121 
+    y_release = 846
 
 class Esp32cam():
     ip_esp = None
@@ -94,9 +94,9 @@ def encontrar_contornos_pieza(image, mask, area_max=6000, area_min=200):
     cv2.drawContours(retorno, grid_contours, -1, (0, 255, 0), 2)
     return retorno, len(grid_contours)
 
-def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=200):
+def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=800):
     lower_color_black = np.array([0, 0, 0])
-    upper_color_black = np.array([35, 35, 35])
+    upper_color_black = np.array([40, 40, 40])
     mascara1 = cv2.inRange(casilla1, lower_color_black, upper_color_black).copy()
     img, contorno = encontrar_contornos_pieza(casilla1,mascara1,area_max, area_min)
     if verbose:
@@ -107,7 +107,7 @@ def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=200):
         if verbose: print('Pieza detectada')
         return 1
     else:
-        lower_red = np.array([0, 45, 45])
+        lower_red = np.array([0, 55, 55])
         upper_red = np.array([255, 255, 255])
 
         mascara1 = cv2.inRange(casilla1, lower_red, upper_red).copy()
@@ -300,12 +300,15 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
 
         print("Aplicando algoritmos de computer vision ... \n Resultado \n")
         image = rotar_imagen(image)
+
         image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
+
+        cv2.imwrite(ruta, image)
 
         for i in range(8):
             for j in range(8):
                 casillero = recortar_casillero(image, i,j)
-                matriz_numerica_t1[i][j] = detectar_pieza(casillero, False, 6000, 600)
+                matriz_numerica_t1[i][j] = detectar_pieza(casillero, debug, 6000, 600)
 
         print('Tablero numerico :  \n', matriz_numerica_t1)
 
