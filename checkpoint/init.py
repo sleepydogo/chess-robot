@@ -11,11 +11,10 @@ import chess, chess.engine
 from brazo import RoboticArm
 
 class SquareSelection():
-    x_initial = 408 
-    y_initial = 70
-    x_release = 1125 
-    y_release = 796
-
+    x_initial = 403 
+    y_initial = 122
+    x_release = 1121 
+    y_release = 846
 
 class Esp32cam():
     ip_esp = None
@@ -97,7 +96,7 @@ def encontrar_contornos_pieza(image, mask, area_max=6000, area_min=200):
 
 def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=800):
     lower_color_black = np.array([0, 0, 0])
-    upper_color_black = np.array([45, 45, 45])
+    upper_color_black = np.array([40, 40, 40])
     mascara1 = cv2.inRange(casilla1, lower_color_black, upper_color_black).copy()
     img, contorno = encontrar_contornos_pieza(casilla1,mascara1,area_max, area_min)
     if verbose:
@@ -108,7 +107,7 @@ def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=800):
         if verbose: print('Pieza detectada')
         return 1
     else:
-        lower_red = np.array([0, 65, 65])
+        lower_red = np.array([0, 55, 55])
         upper_red = np.array([255, 255, 255])
 
         mascara1 = cv2.inRange(casilla1, lower_red, upper_red).copy()
@@ -121,6 +120,8 @@ def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=800):
             if verbose: print('Casillero vacio')
             return 0    
               
+
+###########################################################################
 def solicitar_foto(ruta):
     requests.get(mcu.url_capturar)
     print("Imagen capturada, esperando a que sea procesada por el MCU\n")
@@ -313,7 +314,7 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
 
         print('Tablero numerico :  \n', matriz_numerica_t1)
 
-        origen, destino, status, _ = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
+        origen, destino, status = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
         
         if status: break
         if i == 4 and not status: 
@@ -370,15 +371,16 @@ def main():
     print("Debe calibrar el tablero para empezar a usar el software...\n")
     #desahilitado para las pruebas, TODO: activar
     #mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
-    mcu.ip_esp = "192.168.0.102"
+    mcu.ip_esp = "http://192.168.0.102"
     mcu.url_capturar = 'http://'+ str(mcu.ip_esp)+ '/capture'
     mcu.url_descargar = 'http://'+ str(mcu.ip_esp)+ '/saved-photo'
     try: 
         print("Intentando establecer conexion con el dispositivo ...\n")
-        response = requests.get(mcu.url_capturar)
-        time.sleep(2)
+        response = requests.get(mcu.ip_esp)
+        time.sleep(3)
     except requests.exceptions.RequestException as e:
         print("No se ha podido establecer conexion con el MCU ...\n")
+        print(e)
         return 0
     print("Se ha establecido la conexion correctamente!\n")        
     ruta = os.getcwd() + "/temp.jpg"
@@ -402,10 +404,7 @@ def main():
                     break
                 # Procesamiento jugada roja
                 # Leo el tablero
-                try: 
-                    lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
-                except Exception as e:
-                    break
+                lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
                 if (lectura_correcta):
                     matriz_numerica_mov_ia = matriz_numerica_t1
                     # Lo transformo a fen
@@ -422,7 +421,7 @@ def main():
                     cont_peon_capturas, cont_jugadas = extraer_contadores_string_fen(chessboard.fen())
                     for i in range(8):
                         print(tablero[i])
-                    origen, destino, status, captura = determinar_puntos(matriz_numerica_mov_ia, matriz_numerica_t1, cont_peon_capturas)
+                    origen, destino, status, captura = determinar_puntos(matriz_numerica_mov_ia, matriz_numerica_t1)
                     print('ORIGEN BRAZO: ', origen,'\n DESTINO  BRAZO: ', destino)
                     if captura:
                         arm.sacarPieza(7-destino[0], 7-destino[1])

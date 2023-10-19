@@ -22,6 +22,7 @@ class RoboticArm:
 
     def create_comand(self, row, col, h, verbose=False):
         posx, posy = self.DATA[row][col].split(';')
+        print(posx)
         command = 'G1 ' +posx+ ' ' +posy+ ' Z%d \r\n' % h
         if verbose: print(command)
         return command.encode('ascii')
@@ -70,8 +71,8 @@ class RoboticArm:
         self.SERIAL_DEV.flush()
         message = self.SERIAL_DEV.readline().decode('UTF-8')
         print(message)
-        self.cerrarPinza()
         self.abrirPinza()
+        self.cerrarPinza()
         self.calibrar()
 
     def mover(self, posx_ini, posy_ini, posx_fin, posy_fin):
@@ -81,7 +82,7 @@ class RoboticArm:
         time.sleep(2)
         self.SERIAL_DEV.write('G1 Z70 \r\n'.encode('ascii'))
         self.cerrarPinza()
-        self.SERIAL_DEV.write('G1 Z140 \r\n'.encode('ascii'))    
+        self.SERIAL_DEV.write('G1 Z80 \r\n'.encode('ascii'))    
         time.sleep(2)
         try: 
             resp = self.SERIAL_DEV.readline().decode()
@@ -109,32 +110,14 @@ class RoboticArm:
         print('Se ha cerrado la conexion serial exitosamente..')
 
     def sacarPieza(self, posx_ini, posy_ini):
-        command = self.create_comand(posx_ini, posy_ini, 80)
-        self.SERIAL_DEV.write(command)
-        time.sleep(2)
-        self.cerrarPinza()
-        self.SERIAL_DEV.write('G1 Z180 \r\n'.encode('ascii'))
-        self.SERIAL_DEV.readline()
-        time.sleep(0.5)
-        self.home()
-        self.SERIAL_DEV.write('G1 X200 Y200 \r\n'.encode('ascii'))
-        self.SERIAL_DEV.readline()
+        command = self.posicionamiento_origen(posx_ini, posy_ini)
+        self.SERIAL_DEV.write(command + 'M3 \r\n'.encode('ascii') + 'G1 Z125 \r\n'.encode('ascii') + 'G1 X-170 Y220 \r\n'.encode('ascii'))
         self.abrirPinza()
-        self.SERIAL_DEV.readline()
         self.home()
 
 def main():
     arm = RoboticArm()
     arm.init()
-
-    #arm.mover(1,0,0,0)
-    #arm.mover(1,7,0,7)
-    
-    arm.sacarPieza(7,7)
-
-    arm.close()
-    
-    
     #arm.mover(7,6,6,6)
 
     # TEST: Movimiento por columnas
@@ -160,6 +143,11 @@ def main():
     #    arm.calibrar()
     #    arm.create_matrix()
 
+    arm.mover(1,0,0,0)
+    arm.mover(1,7,0,7)
+    
+
+    arm.close()
 
 if __name__ == "__main__":
     main()
