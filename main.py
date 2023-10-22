@@ -11,10 +11,10 @@ import chess, chess.engine
 from brazo import RoboticArm
 
 class SquareSelection():
-    x_initial = 408 
-    y_initial = 70
-    x_release = 1125 
-    y_release = 796
+    x_initial = 393 
+    y_initial = 134
+    x_release = 1094
+    y_release = 839
 
 
 class Esp32cam():
@@ -313,7 +313,7 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
 
         print('Tablero numerico :  \n', matriz_numerica_t1)
 
-        origen, destino, status, _ = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
+        origen, destino, status = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
         
         if status: break
         if i == 4 and not status: 
@@ -370,7 +370,7 @@ def main():
     print("Debe calibrar el tablero para empezar a usar el software...\n")
     #desahilitado para las pruebas, TODO: activar
     #mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
-    mcu.ip_esp = "192.168.0.102"
+    mcu.ip_esp = "192.168.0.131"
     mcu.url_capturar = 'http://'+ str(mcu.ip_esp)+ '/capture'
     mcu.url_descargar = 'http://'+ str(mcu.ip_esp)+ '/saved-photo'
     try: 
@@ -402,10 +402,7 @@ def main():
                     break
                 # Procesamiento jugada roja
                 # Leo el tablero
-                try: 
-                    lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
-                except Exception as e:
-                    break
+                lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
                 if (lectura_correcta):
                     matriz_numerica_mov_ia = matriz_numerica_t1
                     # Lo transformo a fen

@@ -1,6 +1,3 @@
-
-
-
 import cv2 
 import numpy as np 
 import matplotlib.pyplot as plt
@@ -11,8 +8,6 @@ import matplotlib.widgets as widgets
 # Clase que implementa los algoritmos relacionados al procesamiento de imagenes para la 
 # deteccion y seguimiento de piezas
 class RoboticEye: 
-    
-
     class Mascara: 
         lower_black = np.array([0, 0, 0])
         upper_black = np.array([40, 40, 40])
@@ -87,8 +82,9 @@ class RoboticEye:
 
         return len(grid_contours)
 
+
+    # Recibe por parametro un recorte de un casillero, aplica 2 mascaras que resaltan el color negro y rojo respectivamente y luego aplica un canny a las imagenes con las mascaras, retorna una lista de contornos los cuales estan comprendidos entre area maxima y area minima.
     def detectar_pieza(self, img_casillero, verbose=False, area_max=2000, area_min=800):
-        
         mascara = cv2.inRange(img_casillero, self.Mascara.lower_black, self.Mascara.upper_black).copy()
         contorno = self.encontrar_contornos_pieza(img_casillero, mascara, area_max, area_min)
         

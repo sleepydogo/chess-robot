@@ -94,7 +94,7 @@ def encontrar_contornos_pieza(image, mask, area_max=6000, area_min=200):
     cv2.drawContours(retorno, grid_contours, -1, (0, 255, 0), 2)
     return retorno, len(grid_contours)
 
-def detectar_pieza(casilla1, verbose=False, area_max=2000, area_min=800):
+def detectar_pieza(casilla1, verbose=False, area_max=2500, area_min=1000):
     lower_color_black = np.array([0, 0, 0])
     upper_color_black = np.array([40, 40, 40])
     mascara1 = cv2.inRange(casilla1, lower_color_black, upper_color_black).copy()
@@ -126,7 +126,7 @@ def solicitar_foto(ruta):
     requests.get(mcu.url_capturar)
     print("Imagen capturada, esperando a que sea procesada por el MCU\n")
     time.sleep(7)
-    response = requests.get(mcu.url_descargar)
+    response = requests.get(mcu.url_descargar)>
     time.sleep(2)
     if response.status_code == 200:
         with open(ruta, 'wb') as archivo:
@@ -139,7 +139,6 @@ def solicitar_foto(ruta):
         matriz_rotacion = cv2.getRotationMatrix2D(centro, angulo_rotacion, 1.0)
         imagen_rotada = cv2.warpAffine(imagen, matriz_rotacion, (ancho, alto))
         cv2.imwrite(ruta, imagen_rotada)
-        
         print(f'Imagen descargada como {ruta}\n')
     else:
         print('Error al descargar la imagen')

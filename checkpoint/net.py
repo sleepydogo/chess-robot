@@ -5,10 +5,21 @@ import time
 
 
 class Network:
+
+    class ESP32CAM: 
+        IP = None
+        URL_CAPTURE = '/capture'
+        URL_DOWNLOAD = '/saved-photo'
+
+        def init(self, ip):
+            self.IP = ip
+
+    mcu = ESP32CAM
+
     def solicitar_foto(self, ruta):
         requests.get(mcu.url_capturar)
         print("Imagen capturada, esperando a que sea procesada por el MCU\n")
-        time.sleep(7)
+        time.sleep(4)
         response = requests.get(mcu.url_descargar)
         time.sleep(2)
         if response.status_code == 200:
@@ -28,4 +39,5 @@ class Network:
             print('Error al descargar la imagen')
 
 
-    def init(self)
+    def init(self, ip):
+        self.mcu.MCU_IP = ip

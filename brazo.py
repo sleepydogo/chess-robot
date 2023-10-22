@@ -81,7 +81,10 @@ class RoboticArm:
         time.sleep(2)
         self.SERIAL_DEV.write('G1 Z70 \r\n'.encode('ascii'))
         self.cerrarPinza()
-        self.SERIAL_DEV.write('G1 Z140 \r\n'.encode('ascii'))    
+        if 2 >= posx_ini:
+            self.SERIAL_DEV.write('G1 Z80 \r\n'.encode('ascii'))
+        else:
+            self.SERIAL_DEV.write('G1 Z140 \r\n'.encode('ascii'))
         time.sleep(2)
         try: 
             resp = self.SERIAL_DEV.readline().decode()
@@ -93,7 +96,10 @@ class RoboticArm:
         time.sleep(2)
         self.SERIAL_DEV.write('G1 Z70 \r\n'.encode('ascii'))
         self.abrirPinza()
-        self.SERIAL_DEV.write('G1 Z80 \r\n'.encode('ascii'))
+        if 2 >= posx_fin:
+            self.SERIAL_DEV.write('G1 Z80 \r\n'.encode('ascii'))
+        else:
+            self.SERIAL_DEV.write('G1 Z140 \r\n'.encode('ascii'))
         time.sleep(2)
         try: 
             resp = self.SERIAL_DEV.readline().decode()
@@ -109,57 +115,63 @@ class RoboticArm:
         print('Se ha cerrado la conexion serial exitosamente..')
 
     def sacarPieza(self, posx_ini, posy_ini):
-        command = self.create_comand(posx_ini, posy_ini, 80)
+        command = self.create_comand(posx_ini, posy_ini, 120)
         self.SERIAL_DEV.write(command)
         time.sleep(2)
+        self.SERIAL_DEV.write('G1 Z70 \r\n'.encode('ascii'))
         self.cerrarPinza()
         self.SERIAL_DEV.write('G1 Z180 \r\n'.encode('ascii'))
         self.SERIAL_DEV.readline()
         time.sleep(0.5)
         self.home()
-        self.SERIAL_DEV.write('G1 X200 Y200 \r\n'.encode('ascii'))
+        self.SERIAL_DEV.write('G1 X-200 Y200 \r\n'.encode('ascii'))
         self.SERIAL_DEV.readline()
         self.abrirPinza()
         self.SERIAL_DEV.readline()
-        self.home()
+        self.rest()
+
+
+# TEST: Movimiento por columnas
+def test_avance_columnas(arm):
+    for i in range(8):
+        arm.mover(1,i,0,i)
+        arm.mover(2,i,1,i)
+        arm.mover(3,i,2,i)
+        arm.mover(4,i,3,i)
+        arm.mover(5,i,4,i)
+        arm.mover(6,i,5,i)
+        arm.mover(7,i,6,i)
+
+# TEST: Avance progresivo de peones
+def test_avance_peones(arm):
+    for i in range(7):
+        arm.mover(7-i,0,7-i-1,0)
+        arm.mover(7-i,1,7-i-1,1)
+        arm.mover(7-i,2,7-i-1,2)
+        arm.mover(7-i,3,7-i-1,3)
+        arm.mover(7-i,4,7-i-1,4)
+        arm.mover(7-i,5,7-i-1,5)
+        arm.mover(7-i,6,7-i-1,6)
+        arm.mover(7-i,7,7-i-1,7)
+        arm.calibrar()
+        arm.create_matrix()
+    return 0
+
+def choca_piezas(arm):
+    for i in range(7):
+        print()
+    return 0
 
 def main():
     arm = RoboticArm()
     arm.init()
 
-    #arm.mover(1,0,0,0)
-    #arm.mover(1,7,0,7)
+    arm.sacarPieza(0,0)
     
-    arm.sacarPieza(7,7)
+
 
     arm.close()
     
-    
-    #arm.mover(7,6,6,6)
-
-    # TEST: Movimiento por columnas
-    #for i in range(8):
-        #arm.mover(7,i,6,i)
-        #arm.mover(6,i,5,i)
-        #arm.mover(5,i,4,i)
-        #arm.mover(4,i,3,i)
-        #arm.mover(3,i,2,i)
-        #arm.mover(2,i,1,i)
-        #arm.mover(1,i,0,i)
-    
-    # TEST: Avance progresivo de peones
-    #for i in range(7):
-    #    arm.mover(7-i,0,7-i-1,0)
-    #    arm.mover(7-i,1,7-i-1,1)
-    #    arm.mover(7-i,2,7-i-1,2)
-    #    arm.mover(7-i,3,7-i-1,3)
-    #    arm.mover(7-i,4,7-i-1,4)
-    #    arm.mover(7-i,5,7-i-1,5)
-    #    arm.mover(7-i,6,7-i-1,6)
-    #    arm.mover(7-i,7,7-i-1,7)
-    #    arm.calibrar()
-    #    arm.create_matrix()
-
 
 if __name__ == "__main__":
     main()
