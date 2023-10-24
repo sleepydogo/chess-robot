@@ -17,7 +17,6 @@ class SquareSelection():
     x_release = 959
     y_release = 831
 
-
 class Esp32cam():
     ip_esp = None
     url_capturar =  None
@@ -28,29 +27,31 @@ mcu = Esp32cam()
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
-   
-def mostrar_contornos(img,min,max, bool):
+
+verbose = False
+
+def mostrar_contornos(img,min,max):
     # Aplicar deteccion de bordes utilizando Canny
     edges = cv2.Canny(img, min, max, apertureSize=3)
-    if bool:
+    if verbose:
         cv2.imshow('Detector de contornos', edges)
         cv2.waitKey(0)  
         cv2.destroyAllWindows()
     return edges
 
-def rotar_imagen(img, verbose=False):
+def rotar_imagen(img):
     # Convertimos la imagen a gris
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).copy()
 
-    if (verbose): 
+    if verbose: 
         cv2.imshow('Imagen en blanco y negro', img_gray)
         cv2.waitKey()
         cv2.destroyAllWindows()
 
     # Aplicar deteccion de bordes utilizando Canny
-    edges = mostrar_contornos(img_gray, 150, 300, verbose)
+    edges = mostrar_contornos(img_gray, 150, 300)
 
-    if (verbose): 
+    if verbose: 
         cv2.imshow('Contornos detectados', edges)
         cv2.waitKey()
         cv2.destroyAllWindows()
@@ -67,7 +68,7 @@ def rotar_imagen(img, verbose=False):
     M = cv2.getRotationMatrix2D(center, angle * 180 / np.pi, 1.0)
     rotated = cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
-    if (verbose): 
+    if verbose: 
         cv2.imshow('Imagen rotada', rotated)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -92,54 +93,61 @@ def encontrar_contornos_pieza(image, mask, area_max=6000, area_min=200):
     for contour in contorno:
         if area_max > cv2.contourArea(contour) > area_min:
             grid_contours.append(contour)
+    return len(grid_contours)
 
-    cv2.drawContours(retorno, grid_contours, -1, (0, 255, 0), 2)
-    return retorno, len(grid_contours)
 
-def cargar_mascaras():
-    with open('masks.csv', 'r') as file:
-        lines = file.readlines()
+# Recibe una imagen como parametro aplica una mascara que binariza los colores rojos.
+def detectar_color_rojo(img):
+    imagen_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    numpy_arrays = []
+    # Definir el rango de rojo en el espacio de color HSV
+    rojo_bajo = np.array([0, 100, 100])
+    rojo_alto = np.array([19, 255, 255])
 
-    for line in lines:
-        # Divide la línea en valores numéricos separados por comas
-        values = [int(x) for x in line.strip().split(',')]
-        # Convierte la lista de valores en un array NumPy
-        numpy_array = np.array(values)
-        # Agrega el array a la lista
-        numpy_arrays.append(numpy_array)
+    rojo_bajo1 = np.array([161, 100, 100])
+    rojo_alto1 = np.array([179, 255, 255])
 
-    # Ahora, numpy_arrays contendrá los cuatro arrays NumPy
-    # Accedemos a cada uno de ellos por su índice
-    array1 = numpy_arrays[0]
-    array2 = numpy_arrays[1]
-    array3 = numpy_arrays[2]
-    array4 = numpy_arrays[3]
-    return array1, array2, array3, array4
+    # Crea una máscara para los píxeles que caen dentro del rango de rojo
+    mascara1= cv2.inRange(imagen_hsv, rojo_bajo, rojo_alto)
+    mascara2 = cv2.inRange(imagen_hsv, rojo_bajo1, rojo_alto1)
+
+    mascara = cv2.add(mascara1, mascara2)
+
+    return mascara
+
+# Recibe una imagen como parametro aplica una mascara que binariza los colores negros
+def detectar_color_negro(img):
+    # Convierte la imagen a espacio de color HSV
+    imagen_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    # Definir el rango de rojo en el espacio de color HSV
+    negro_bajo = np.array([0, 0, 0])
+    negro_alto = np.array([179, 255, 80])
+
+    # Crea una máscara para los píxeles que caen dentro del rango de rojo
+    mascara = cv2.inRange(imagen_hsv, negro_bajo, negro_alto)
+
+    return mascara
 
 #mascaras
-def detectar_pieza(casilla1, verbose=False, area_max=6000, area_min=900):
-    lower_color_black, upper_color_black, lower_red, upper_red = cargar_mascaras()
-    mascara1 = cv2.inRange(casilla1, lower_color_black, upper_color_black).copy()
-    img, contorno = encontrar_contornos_pieza(casilla1, mascara1, area_max, area_min)
-    if verbose:
-        cv2.imshow("Casillero recortado: ", casilla1)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()        
-    if contorno > 0:
+def detectar_pieza(casilla1, area_max=6000, area_min=900):
+    mascara_negra = detectar_color_negro(casilla1.copy())
+    mascara_roja = detectar_color_rojo(casilla1.copy())
+
+    cantidad_contornos = encontrar_contornos_pieza(casilla1, mascara_negra, area_max, area_min)
+
+    if cantidad_contornos > 0:
         if verbose: print('Pieza detectada')
         return 1
     else:
-        mascara1 = cv2.inRange(casilla1, lower_red, upper_red).copy()
-        img, contorno = encontrar_contornos_pieza(casilla1, ~mascara1,area_max, area_min)
+        cantidad_contornos = encontrar_contornos_pieza(casilla1, mascara_roja, area_max, area_min)
 
-        if contorno > 0:
+        if cantidad_contornos > 0:
             if verbose: print('Pieza detectada')
             return 2
         else:
             if verbose: print('Casillero vacio')
-            return 0    
+            return 0      
               
 def solicitar_foto(ruta):
     requests.get(mcu.url_capturar)
@@ -163,12 +171,12 @@ def solicitar_foto(ruta):
     else:
         print('Error al descargar la imagen')
 
-def guardar_valores_en_archivo(filename, valores):
+def guardar_recorte_tablero(filename, valores):
     with open(filename, 'w') as archivo:
         for valor in valores:
             archivo.write(str(valor) + '\n')
 
-def recuperar_valores_de_archivo(filename):
+def leer_recorte_tablero(filename):
     valores = []
     try:
         # Abre el archivo en modo lectura
@@ -193,7 +201,7 @@ def calibrar(filename):
         selec.y_initial = int(eclick.ydata) 
         selec.x_release = int(erelease.xdata) 
         selec.y_release = int(erelease.ydata)
-        guardar_valores_en_archivo('config.log', [selec.x_initial, selec.x_release, selec.y_initial, selec.y_release])
+        guardar_recorte_tablero('config.log', [selec.x_initial, selec.x_release, selec.y_initial, selec.y_release])
     input(" Seleccione en la imagen el tablero ...")
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -330,7 +338,7 @@ def iniciar_matrices():
     m3 = np.zeros((8, 8), dtype=int)
     return m1.copy(),m2.copy(),m3.copy()
 
-def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas, debug=False):
+def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas):
     print("Procesando ... \n")
     for i in range(12):  
         print("Intento " + str(i) + "\n")
@@ -350,7 +358,7 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
             for j in range(8):
                 casillero = recortar_casillero(image, i,j)
                 #areas
-                matriz_numerica_t1[i][j] = detectar_pieza(casillero, debug, 6500, 700)
+                matriz_numerica_t1[i][j] = detectar_pieza(casillero, 6500, 700)
 
         print('Tablero numerico :  \n', matriz_numerica_t1)
 
@@ -393,9 +401,7 @@ def extraer_contadores_string_fen(fen):
     return numbers[0],numbers[1] 
 
 
-def main():
-    debug = False        
-
+def main(): 
     print(f"""
       ____       _           _   _                 ____ _                   
      |  _ \ ___ | |__   ___ | |_(_) ___           / ___| |__   ___  ___ ___ 
@@ -428,7 +434,7 @@ def main():
         select = input(" \n--Menu: \n r - para recalibrar manualmente \n j - para jugar \n a - retomar partida \n d - activar o desactivar el modo debugger \n q - para salir\n \n -- ")
         #select = 'j'
         if select == 'j':
-            config = recuperar_valores_de_archivo('config.log')
+            config = leer_recorte_tablero('config.log')
             selec.x_initial = config[0]
             selec.x_release = config[1]
             selec.y_initial = config[2]
@@ -441,6 +447,49 @@ def main():
             cont_jugadas = 0
             cont_peon_capturas = 0
             chessboard = chess.Board()
+            while (True):
+                captura = input("Presione enter para capturar el tablero, 'q' para salir \n")    
+                if captura == "q":
+                    os.remove(ruta)
+                    print("Saliendo ...")
+                    arm.close()
+                    break
+                # Procesamiento jugada roja
+                # Leo el tablero
+                lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas)  
+                if (lectura_correcta):
+                    matriz_numerica_mov_ia = matriz_numerica_t1
+                    # Lo transformo a fen
+                    fen = matriz_a_fen(tablero) + str(" b KQkq - " + str(cont_peon_capturas) + " " + str(cont_jugadas))
+                    guardar_partida.setParams(fen, matriz_numerica_t0, matriz_numerica_t1, tablero)
+                    print(fen)
+                    chessboard = chess.Board(fen)
+                    # Ingreso el string fen al chess engine
+                    move = mejor_movimiento(fen)
+                    # Pusheo el movimiento al tablero 
+                    chessboard.push_san(str(move.move))
+                    matriz_numerica_t0, matriz_numerica_t1, tablero  = tablero_a_matriz_numerica(chessboard)
+                    print('matriz numerica 0: ', matriz_numerica_mov_ia)
+                    print('matriz numerica 1: ', matriz_numerica_t1)
+                    cont_peon_capturas, cont_jugadas = extraer_contadores_string_fen(chessboard.fen())
+                    for i in range(8):
+                        print(tablero[i])
+                    origen, destino, status, captura = determinar_puntos(matriz_numerica_mov_ia, matriz_numerica_t1, cont_peon_capturas)
+                    print('ORIGEN BRAZO: ', origen,'\n DESTINO  BRAZO: ', destino)
+                    if captura:
+                        arm.sacarPieza(7-destino[0], 7-destino[1])
+                    arm.mover(7-origen[0], 7-origen[1], 7-destino[0], 7-destino[1])
+                    guardar_partida.setParams(fen, matriz_numerica_t0, matriz_numerica_t1, tablero)
+                else: 
+                    os.remove(ruta)
+                    print("Saliendo ...")
+                    #arm.close()
+                    break
+        elif select == "a":
+            fen =  Partida().getParams().FEN
+            matriz_numerica_t0 = Partida().getParams().MATRIZ1
+            matriz_numerica_t1 = Partida().getParams().MATRIZ2
+            tablero = Partida().getParams().TABLERO
             while (True):
                 captura = input("Presione enter para capturar el tablero, 'q' para salir \n")    
                 if captura == "q":
@@ -470,52 +519,9 @@ def main():
                         print(tablero[i])
                     origen, destino, status, captura = determinar_puntos(matriz_numerica_mov_ia, matriz_numerica_t1, cont_peon_capturas)
                     print('ORIGEN BRAZO: ', origen,'\n DESTINO  BRAZO: ', destino)
-                    if captura:
-                        arm.sacarPieza(7-destino[0], 7-destino[1])
-                    arm.mover(7-origen[0], 7-origen[1], 7-destino[0], 7-destino[1])
-                    guardar_partida.setParams(fen, matriz_numerica_t0, matriz_numerica_t1, tablero)
-                else: 
-                    os.remove(ruta)
-                    print("Saliendo ...")
-                    arm.close()
-                    break
-        elif select == "a":
-            fen =  Partida().getParams().FEN
-            matriz_numerica_t0 = Partida().getParams().MATRIZ1
-            matriz_numerica_t1 = Partida().getParams().MATRIZ2
-            tablero = Partida().getParams().TABLERO
-            while (True):
-                captura = input("Presione enter para capturar el tablero, 'q' para salir \n")    
-                if captura == "q":
-                    os.remove(ruta)
-                    print("Saliendo ...")
-                    arm.close()
-                    break
-                # Procesamiento jugada roja
-                # Leo el tablero
-                lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas, debug)  
-                if (lectura_correcta):
-                    matriz_numerica_mov_ia = matriz_numerica_t1
-                    # Lo transformo a fen
-                    fen = matriz_a_fen(tablero) + str(" b KQkq - " + str(cont_peon_capturas) + " " + str(cont_jugadas))
-                    guardar_partida.setParams(fen, matriz_numerica_t0, matriz_numerica_t1, tablero)
-                    print(fen)
-                    chessboard = chess.Board(fen)
-                    # Ingreso el string fen al chess engine
-                    move = mejor_movimiento(fen)
-                    # Pusheo el movimiento al tablero 
-                    chessboard.push_san(str(move.move))
-                    matriz_numerica_t0, matriz_numerica_t1, tablero  = tablero_a_matriz_numerica(chessboard)
-                    print('matriz numerica 0: ', matriz_numerica_mov_ia)
-                    print('matriz numerica 1: ', matriz_numerica_t1)
-                    cont_peon_capturas, cont_jugadas = extraer_contadores_string_fen(chessboard.fen())
-                    for i in range(8):
-                        print(tablero[i])
-                    origen, destino, status, captura = determinar_puntos(matriz_numerica_mov_ia, matriz_numerica_t1, cont_peon_capturas)
-                    print('ORIGEN BRAZO: ', origen,'\n DESTINO  BRAZO: ', destino)
-                    if captura:
-                        arm.sacarPieza(7-destino[0], 7-destino[1])
-                    arm.mover(7-origen[0], 7-origen[1], 7-destino[0], 7-destino[1])
+                    #if captura:
+                    #    arm.sacarPieza(7-destino[0], 7-destino[1])
+                    #arm.mover(7-origen[0], 7-origen[1], 7-destino[0], 7-destino[1])
                     guardar_partida.setParams(fen, matriz_numerica_t0, matriz_numerica_t1, tablero)
                 else: 
                     os.remove(ruta)
