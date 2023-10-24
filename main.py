@@ -84,7 +84,7 @@ def recortar_casillero(image, i, j):
     casillero = image[start_y:end_y, start_x:end_x].copy()
     return casillero
 
-def encontrar_contornos_pieza(image, mask, area_max=5000, area_min=200):
+def encontrar_contornos_pieza(image, mask, area_max=6000, area_min=200):
     retorno = image.copy()
     contorno,_ = cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
     
@@ -96,9 +96,31 @@ def encontrar_contornos_pieza(image, mask, area_max=5000, area_min=200):
     cv2.drawContours(retorno, grid_contours, -1, (0, 255, 0), 2)
     return retorno, len(grid_contours)
 
+def cargar_mascaras():
+    with open('masks.csv', 'r') as file:
+        lines = file.readlines()
+
+    numpy_arrays = []
+
+    for line in lines:
+        # Divide la línea en valores numéricos separados por comas
+        values = [int(x) for x in line.strip().split(',')]
+        # Convierte la lista de valores en un array NumPy
+        numpy_array = np.array(values)
+        # Agrega el array a la lista
+        numpy_arrays.append(numpy_array)
+
+    # Ahora, numpy_arrays contendrá los cuatro arrays NumPy
+    # Accedemos a cada uno de ellos por su índice
+    array1 = numpy_arrays[0]
+    array2 = numpy_arrays[1]
+    array3 = numpy_arrays[2]
+    array4 = numpy_arrays[3]
+    return array1, array2, array3, array4
+
+#mascaras
 def detectar_pieza(casilla1, verbose=False, area_max=6000, area_min=900):
-    lower_color_black = np.array([0, 0, 0])
-    upper_color_black = np.array([70,70,70])
+    lower_color_black, upper_color_black, lower_red, upper_red = cargar_mascaras()
     mascara1 = cv2.inRange(casilla1, lower_color_black, upper_color_black).copy()
     img, contorno = encontrar_contornos_pieza(casilla1, mascara1, area_max, area_min)
     if verbose:
@@ -109,9 +131,6 @@ def detectar_pieza(casilla1, verbose=False, area_max=6000, area_min=900):
         if verbose: print('Pieza detectada')
         return 1
     else:
-        lower_red = np.array([0, 70, 70])
-        upper_red = np.array([255, 255, 255])
-
         mascara1 = cv2.inRange(casilla1, lower_red, upper_red).copy()
         img, contorno = encontrar_contornos_pieza(casilla1, ~mascara1,area_max, area_min)
 
@@ -313,7 +332,7 @@ def iniciar_matrices():
 
 def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas, debug=False):
     print("Procesando ... \n")
-    for i in range(200):  
+    for i in range(12):  
         print("Intento " + str(i) + "\n")
         solicitar_foto(ruta)
         image = cv2.imread(ruta)
@@ -323,21 +342,21 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
 
         image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
 
+        image = rotar_imagen(image)
+
         cv2.imwrite(ruta, image)
 
         for i in range(8):
             for j in range(8):
                 casillero = recortar_casillero(image, i,j)
-                matriz_numerica_t1[i][j] = detectar_pieza(casillero, debug, 5000, 600)
+                #areas
+                matriz_numerica_t1[i][j] = detectar_pieza(casillero, debug, 6500, 700)
 
         print('Tablero numerico :  \n', matriz_numerica_t1)
 
         origen, destino, status, _ = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
         
         if status: break
-        if i == 4 and not status: 
-            print("Ha fallado el reconocimiento.. Intente recalibrando \n")
-            break
     if status:
         tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
         tablero[origen[0]][origen[1]] = '.'
@@ -348,6 +367,8 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
         cont_jugadas = cont_jugadas + 1
 
         return status, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas
+    else: 
+        exit(1)
 
 def tablero_a_matriz_numerica(tablero):
     matriz = np.zeros((8, 8), dtype=int)
@@ -388,7 +409,8 @@ def main():
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
     #desahilitado para las pruebas, TODO: activar
-    mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
+    #mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
+    mcu.ip_esp = '192.168.0.131'
     mcu.url_capturar = 'http://'+ str(mcu.ip_esp)+ '/capture'
     mcu.url_descargar = 'http://'+ str(mcu.ip_esp)+ '/saved-photo'
     try: 
@@ -404,6 +426,7 @@ def main():
     
     while True:
         select = input(" \n--Menu: \n r - para recalibrar manualmente \n j - para jugar \n a - retomar partida \n d - activar o desactivar el modo debugger \n q - para salir\n \n -- ")
+        #select = 'j'
         if select == 'j':
             config = recuperar_valores_de_archivo('config.log')
             selec.x_initial = config[0]
@@ -423,7 +446,7 @@ def main():
                 if captura == "q":
                     os.remove(ruta)
                     print("Saliendo ...")
-                    arm.close()
+                    #arm.close()
                     break
                 # Procesamiento jugada roja
                 # Leo el tablero
