@@ -79,7 +79,7 @@ class RoboticArm:
         command = self.create_comand(posx_ini, posy_ini, 120)
         self.SERIAL_DEV.write(command)
         time.sleep(2)
-        self.SERIAL_DEV.write('G1 Z70 \r\n'.encode('ascii'))
+        self.SERIAL_DEV.write('G1 Z60 \r\n'.encode('ascii'))
         self.cerrarPinza()
         if 2 >= posx_ini:
             self.SERIAL_DEV.write('G1 Z80 \r\n'.encode('ascii'))
@@ -157,6 +157,17 @@ def test_avance_peones(arm):
         arm.create_matrix()
     return 0
 
+def rompan_todo(arm):
+    # Posiciona en x,y a 120 de altura
+    command = arm.create_comand(0,0, 80)
+    arm.SERIAL_DEV.write(command)
+    time.sleep(2)
+    command = arm.create_comand(0, 7, 100)
+    arm.SERIAL_DEV.write(command)
+    time.sleep(2)
+    arm.rest()
+    
+
 def choca_piezas(arm):
     for i in range(7):
         print()
@@ -165,11 +176,7 @@ def choca_piezas(arm):
 def main():
     arm = RoboticArm()
     arm.init()
-
-    arm.sacarPieza(0,0)
-    
-
-
+    arm.mover(6,3,4,3)
     arm.close()
     
 
