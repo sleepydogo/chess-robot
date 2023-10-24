@@ -85,10 +85,8 @@ def recortar_casillero(image, i, j):
     casillero = image[start_y:end_y, start_x:end_x].copy()
     return casillero
 
-def encontrar_contornos_pieza(image, mask, area_max=6000, area_min=200):
-    retorno = image.copy()
+def encontrar_contornos_pieza(mask, area_max=6000, area_min=900):
     contorno,_ = cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-    
     grid_contours = []   
     for contour in contorno:
         if area_max > cv2.contourArea(contour) > area_min:
@@ -102,9 +100,9 @@ def detectar_color_rojo(img):
 
     # Definir el rango de rojo en el espacio de color HSV
     rojo_bajo = np.array([0, 100, 100])
-    rojo_alto = np.array([19, 255, 255])
+    rojo_alto = np.array([25, 255, 255])
 
-    rojo_bajo1 = np.array([161, 100, 100])
+    rojo_bajo1 = np.array([155, 100, 100])
     rojo_alto1 = np.array([179, 255, 255])
 
     # Crea una máscara para los píxeles que caen dentro del rango de rojo
@@ -122,7 +120,7 @@ def detectar_color_negro(img):
 
     # Definir el rango de rojo en el espacio de color HSV
     negro_bajo = np.array([0, 0, 0])
-    negro_alto = np.array([179, 255, 80])
+    negro_alto = np.array([179, 255, 60])
 
     # Crea una máscara para los píxeles que caen dentro del rango de rojo
     mascara = cv2.inRange(imagen_hsv, negro_bajo, negro_alto)
@@ -134,13 +132,13 @@ def detectar_pieza(casilla1, area_max=6000, area_min=900):
     mascara_negra = detectar_color_negro(casilla1.copy())
     mascara_roja = detectar_color_rojo(casilla1.copy())
 
-    cantidad_contornos = encontrar_contornos_pieza(casilla1, mascara_negra, area_max, area_min)
+    cantidad_contornos = encontrar_contornos_pieza(mascara_negra, area_max, area_min)
 
     if cantidad_contornos > 0:
         if verbose: print('Pieza detectada')
         return 1
     else:
-        cantidad_contornos = encontrar_contornos_pieza(casilla1, mascara_roja, area_max, area_min)
+        cantidad_contornos = encontrar_contornos_pieza(mascara_roja, area_max, area_min)
 
         if cantidad_contornos > 0:
             if verbose: print('Pieza detectada')
@@ -358,7 +356,7 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
             for j in range(8):
                 casillero = recortar_casillero(image, i,j)
                 #areas
-                matriz_numerica_t1[i][j] = detectar_pieza(casillero, 6500, 700)
+                matriz_numerica_t1[i][j] = detectar_pieza(casillero, 6500, 600)
 
         print('Tablero numerico :  \n', matriz_numerica_t1)
 
@@ -541,11 +539,11 @@ def main():
                     print(selec.x_initial, selec.y_initial, selec.x_release, selec.y_release)
                     break
         elif select == "d":
-            if debug: 
-                debug = False
+            if verbose: 
+                verbose = False
                 print("Debug desactivado\n")
             else: 
-                debug = True
+                verbose = True
                 print("Debug activado\n")
         elif select == "q":
             print("Saliendo ...")
