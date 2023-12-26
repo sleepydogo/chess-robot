@@ -1,4 +1,4 @@
-# chessboad-cv
+# chess-robot
 
 ### Descripción
 
