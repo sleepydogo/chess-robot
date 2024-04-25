@@ -2,9 +2,11 @@
 
 ### Descripción
 
-No hay documentación y el código esta desordenado  B) >:^) 
-
-           admin preparando documentación y mejoras ...
+python3 -m venv venv
+pip install -r requirements.txt
+source venv/bin/activate
+cd chess-robot
+python3 -m chess-robot
 
 <pre>
            __    __    __    __         
