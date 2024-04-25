@@ -11,6 +11,7 @@ import chess, chess.engine
 from brazo import RoboticArm
 from checkpoint import Partida
 
+# Puntos donde se encuentra el tablero 
 class SquareSelection():
     x_initial = 272 
     y_initial = 140
@@ -39,6 +40,10 @@ def mostrar_contornos(img,min,max):
         cv2.destroyAllWindows()
     return edges
 
+
+## Esta rotacion es en base a la transformada de hough, detecta los contornos y determina un angulo promedio
+## entre las lineas horizontales y la horizontal de la imagen, en el cual despues se basa para rotar y acomodar
+## la imagen
 def rotar_imagen(img):
     # Convertimos la imagen a gris
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).copy()
@@ -127,11 +132,14 @@ def detectar_color_negro(img):
 
     return mascara
 
-#mascaras
+# mascaras
 def detectar_pieza(casilla1, area_max=6000, area_min=900):
+
+    # Aplicamos mascaras a el recorte del casillero
     mascara_negra = detectar_color_negro(casilla1.copy())
     mascara_roja = detectar_color_rojo(casilla1.copy())
 
+    # Detectamos contornos en la imagen con las mascara aplicada
     cantidad_contornos = encontrar_contornos_pieza(mascara_negra, area_max, area_min)
 
     if cantidad_contornos > 0:
@@ -217,21 +225,31 @@ def tienen_mismos_numeros(array1, array2):
     conjunto2 = set(array2)
     return conjunto1 == conjunto2
 
+## Esta funcion hace una resta entre las matrices numericas t0 y t1 
 def determinar_puntos(mov0, mov1, cont_peon_capturas=0):
-    matriz_mov_tipos = np.array([[1,-1],  # mov negro 0 
-                            [2,-1],  # pieza blanca come pieza negra 1 
-                            [1,1],   # pieza negra come pieza blanca 2
-                            [2,-2]])  # mov blanco 3 
+    matriz_mov_tipos = np.array([
+        [1,-1],     # mov negro 0 
+                    # -1 origen 
+                    # 1 destino 
+        [2,-1],     # pieza blanca come pieza negra 1 
+        [1,1],      # pieza negra come pieza blanca 2
+        [2,-2]      # mov blanco 3
+        ])         
 
+    # Res almacena la resta de tableros
     res = mov0 - mov1
-
+    # Almacena el resultado de la resta de los casilleros y sus indices
     puntos = np.zeros((2,3), dtype=int)
+    # ?? 
     cont = 0
-
+    
     # estructura de la variable puntos -->  [indice][res, x, y]
     for i in range(8):
         for j in range(8):
+            ## TODO: CONTEMPLAR ENRROQUE
+            ## Recorremos la matriz resultado y almacenamos en "puntos" los casilleros detectados con cambios
             if (res[i][j] != 0):
+                # Si el contador es 2, y se detecto un nuevo casillero modificado, retornamos null por movimiento fraudulento
                 if cont == 2:
                     return None, None, False, False
                 puntos[cont][0] = res[i][j] 
@@ -239,26 +257,35 @@ def determinar_puntos(mov0, mov1, cont_peon_capturas=0):
                 puntos[cont][2] = j
                 cont = cont + 1
                 
+    # Diferencias almacena los dos valores distintos de cero de la matriz numerica
     diferencias = np.array([puntos[0][0], puntos[1][0]])
 
-    caso = -1
-    captura = False
+    caso = -1       ## Almacena que tipo de movimiento se realizo 
+    captura = False ## Almacena si hubo una captura
+    
+    # Comparamos los valores del array resultados con el mov_tipos y asignamos el caso en la variable "caso"
     for i in range(4):
         if (tienen_mismos_numeros(diferencias, matriz_mov_tipos[i])):
             caso = i
             break
-
+    
     origen =  np.zeros((2), dtype=int)
     destino = np.zeros((2), dtype=int)
 
+    # TODO: REESCRIBIR ESTO POR EL AMOR DE DIOS
+    # Mov pieza negra a casillero vacio
     if (caso == 0):
         for i in range(2):
+            ## Resultado que hay en el casillero con el valor 1
+            ## Si es igual ese casillero es el origen 
             if (puntos[i][0] == 1): 
                 origen[0] = int(puntos[i][1])
                 origen[1] = int(puntos[i][2])
+            ## Si no es el destino 
             else:
                 destino[0] = int(puntos[i][1])
                 destino[1] = int(puntos[i][2])
+    # Mov pieza blanca come pieza negra 
     elif (caso == 1):
         cont_peon_capturas = cont_peon_capturas + 1
         captura = True
@@ -269,9 +296,13 @@ def determinar_puntos(mov0, mov1, cont_peon_capturas=0):
             else:
                 destino[0] = puntos[i][1]
                 destino[1] = puntos[i][2]
+    # Mov pieza negra come pieza blanca 
     elif (caso == 2):
+        # Actualizamos contadores y flags
         cont_peon_capturas = cont_peon_capturas + 1
         captura = True
+        # Para deteminar cual es el origen y cual es el destino consultamos el valor en la matriz mov1
+        # aquel que sea igual a cero sera el origen.
         for i in range(2):
             if (mov1[puntos[i][1]][puntos[i][2]] == 0): 
                 origen[0] = puntos[i][1]
@@ -279,6 +310,7 @@ def determinar_puntos(mov0, mov1, cont_peon_capturas=0):
             else:
                 destino[0] = puntos[i][1]
                 destino[1] = puntos[i][2]
+    # Mov pieza blanca a casillero vacio
     elif (caso == 3):
         for i in range(2):
             if (puntos[i][0] == 2): 
@@ -336,18 +368,26 @@ def iniciar_matrices():
     m3 = np.zeros((8, 8), dtype=int)
     return m1.copy(),m2.copy(),m3.copy()
 
+
+# 
 def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas):
     print("Procesando ... \n")
+    # Se intenta capturar y detectar las piezas del tablero 12 veces antes de interrumpir la ejecucion
     for i in range(12):  
         print("Intento " + str(i) + "\n")
+        # Solicitamos la foto pasamos la ruta que es temp.jpg
         solicitar_foto(ruta)
+        # Leemos la imagen 
         image = cv2.imread(ruta)
-
         print("Aplicando algoritmos de computer vision ... \n Resultado \n")
+        
+        # 
         image = rotar_imagen(image)
 
+        # Se recorta la imagen en base a la calibracion almacenada en SquareSelect
         image = image[(selec.y_initial):(selec.y_release), (selec.x_initial):(selec.x_release)].copy()
 
+        # Volvemos a acomodar
         image = rotar_imagen(image)
 
         cv2.imwrite(ruta, image)
@@ -361,25 +401,38 @@ def actualizar_tablero(tablero, ruta, matriz_numerica_t0, matriz_numerica_t1, co
         print('Tablero numerico :  \n', matriz_numerica_t1)
 
         origen, destino, status, _ = determinar_puntos(matriz_numerica_t0, matriz_numerica_t1, cont_peon_capturas)
-        
+        # Status representa si se proceso bien la imagen.
         if status: break
     if status:
+        # Actualizamos la matriz alfabetica
         tablero[destino[0]][destino[1]] = tablero[origen[0]][origen[1]]
         tablero[origen[0]][origen[1]] = '.'
 
         print("Resultado: \n Tablero leido exitosamente!\n")                
+        # imprimimos la matriza alfabetica actual
         for i in range(8):
             print(tablero[i])   
+        # Sumamos uno en el contador de jugadas
         cont_jugadas = cont_jugadas + 1
-
+        
+        # status = leimos correctamente el tablero ? boolen 
+        # tablero = matriz alfabetica
+        # matriz_numerica_t0 =  
+        # matriz_numerica_t1 =  
+        # cont_jugadas = 
+        # cont_peon_capturas = 
         return status, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas
     else: 
         exit(1)
 
+## Param tablero es chess.Board()
 def tablero_a_matriz_numerica(tablero):
+    # Creamos dos matrices de ceros
     matriz = np.zeros((8, 8), dtype=int)
     matriz2 = np.zeros((8, 8), dtype=str)
     cont = 0
+    ## Leemos
+    ## Tenemos dos indices "i" que recorre el string tablero de gnuchess y "cont" 
     for i in range(0, len(tablero.__str__()), 2):
         if (tablero.__str__()[i].isalpha()):
             if (tablero.__str__()[i].isupper()):
@@ -387,6 +440,7 @@ def tablero_a_matriz_numerica(tablero):
             elif (tablero.__str__()[i].islower()):
                 matriz[i//16][cont] = 1
             matriz2[i//16][cont] = "."
+        ## copia directamente tablero 
         matriz2[i//16][cont] = tablero.__str__()[i]
         cont = cont + 1 
         if (cont == 8): cont = 0
@@ -412,8 +466,7 @@ def main():
           """)
     print("Bienvenido.. \n")
     print("Debe calibrar el tablero para empezar a usar el software...\n")
-    #desahilitado para las pruebas, TODO: activar
-    #mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
+    mcu.ip_esp = input("Ingrese el ip del ESP32-cam: ")
     mcu.ip_esp = '192.168.0.131'
     mcu.url_capturar = 'http://'+ str(mcu.ip_esp)+ '/capture'
     mcu.url_descargar = 'http://'+ str(mcu.ip_esp)+ '/saved-photo'
@@ -437,17 +490,31 @@ def main():
             selec.x_release = config[1]
             selec.y_initial = config[2]
             selec.y_release = config[3]
+            # Inicializamos el brazo
             arm = RoboticArm()
+            # Creamos un objeto partida
             guardar_partida = Partida()
             arm.init()
+            
+            ## Cargamos la matriz tablero con las letras correspondientes al inicio del juego
+            # Y las matrices numericas t0 y t1 con los valores numericos de las piezas 
             tablero, matriz_numerica_t0, matriz_numerica_t1 = iniciar_matrices()
+            
+            # ??
             matriz_numerica_mov_ia = None
+            
+            # Contador de jugadas y peones capturados, estos datos son necesarios para generar el 
+            # FEN
             cont_jugadas = 0
             cont_peon_capturas = 0
+            # Creamos la variable chess board
             chessboard = chess.Board()
+            # Game loop
             while (True):
                 captura = input("Presione enter para capturar el tablero, 'q' para salir \n")    
+                # Cerramos el juego y salimos
                 if captura == "q":
+                    # eliminamos la foto temp.jpg (tablero)
                     os.remove(ruta)
                     print("Saliendo ...")
                     arm.close()
@@ -456,23 +523,30 @@ def main():
                 # Leo el tablero
                 lectura_correcta, tablero, matriz_numerica_t0, matriz_numerica_t1, cont_jugadas, cont_peon_capturas = actualizar_tablero(tablero.copy(), ruta, matriz_numerica_t0.copy(), matriz_numerica_t1.copy(), cont_jugadas, cont_peon_capturas)  
                 if (lectura_correcta):
+                    # Si se leyo correctamente el tablero 
                     matriz_numerica_mov_ia = matriz_numerica_t1
                     # Lo transformo a fen
                     fen = matriz_a_fen(tablero) + str(" b KQkq - " + str(cont_peon_capturas) + " " + str(cont_jugadas))
                     guardar_partida.setParams(fen, matriz_numerica_t0, matriz_numerica_t1, tablero)
                     print(fen)
+                    # Cargamos chessboard con la informacion del tablero actual 
                     chessboard = chess.Board(fen)
                     # Ingreso el string fen al chess engine
                     move = mejor_movimiento(fen)
                     # Pusheo el movimiento al tablero 
                     chessboard.push_san(str(move.move))
+                    
                     matriz_numerica_t0, matriz_numerica_t1, tablero  = tablero_a_matriz_numerica(chessboard)
                     print('matriz numerica 0: ', matriz_numerica_mov_ia)
                     print('matriz numerica 1: ', matriz_numerica_t1)
+                    
                     cont_peon_capturas, cont_jugadas = extraer_contadores_string_fen(chessboard.fen())
+                    
                     for i in range(8):
                         print(tablero[i])
+                    ## mov_ia guarda el ultimo estado del tablero post la jugada humana
                     origen, destino, status, captura = determinar_puntos(matriz_numerica_mov_ia, matriz_numerica_t1, cont_peon_capturas)
+                    
                     print('ORIGEN BRAZO: ', origen,'\n DESTINO  BRAZO: ', destino)
                     if captura:
                         arm.sacarPieza(7-destino[0], 7-destino[1])
