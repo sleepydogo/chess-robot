@@ -1,8 +1,10 @@
-# chessboad-cv
+# chess-robot
 
-### Descripcion
+### Descripción
 
-No hay documentacion y el codigo esta desordenado  B) >:^) 
+No hay documentación y el código esta desordenado  B) >:^) 
+
+           admin preparando documentación y mejoras ...
 
 <pre>
            __    __    __    __         
