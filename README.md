@@ -1,13 +1,17 @@
 # chess-robot
 
 ### Descripción
-
+```
 python3 -m venv venv
-pip install -r requirements.txt
-source venv/bin/activate
-cd chess-robot
-python3 -m chess-robot
 
+pip install -r requirements.txt
+
+source venv/bin/activate
+
+cd chess-robot
+
+python3 -m chess-robot
+```
 <pre>
            __    __    __    __         
        8 /__////__////__////__////    
